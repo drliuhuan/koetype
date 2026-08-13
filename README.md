@@ -105,6 +105,20 @@ KoeType stands on the shoulders of many great open-source projects. Sincere than
 
 完整致谢见 [THANKS](THANKS) / Full acknowledgements in [THANKS](THANKS).
 
+## 捐赠与赞助 / Donations
+
+**Buy me some tokens. ⚡**
+
+KoeType 完全免费开源。如果你觉得它有用，欢迎扫码支持作者继续开发——每一份心意都会变成更多的 token，变成更好的功能。
+KoeType is completely free and open source. If you find it useful, feel free to scan and support the author — every token counts, and it all goes back into making this project better.
+
+| 微信支付 / WeChat Pay | 支付宝 / Alipay |
+|---|---|
+| ![WeChat Pay](assets/donate/wechat.png) | ![Alipay](assets/donate/alipay.jpg) |
+
+> **重要声明 / Important Notice**：捐赠是对开发的支持，**不代表商业授权**。任何商业使用仍须通过 [GitHub Issues](https://github.com/drliuhuan/koetype/issues) 联系作者签署书面授权协议。
+> Donations are a gesture of support and **do NOT constitute a commercial license**. Any commercial use still requires a written license agreement from the author via [GitHub Issues](https://github.com/drliuhuan/koetype/issues).
+
 ## 贡献者 / Contributors
 
 - **drliuhuan** — 产品设计、需求定义、测试验证 / product design, requirements, testing
