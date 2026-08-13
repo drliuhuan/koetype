@@ -1,20 +1,22 @@
 # 致谢 / Acknowledgements
 
 KoeType 建立在众多优秀的开源项目之上，在此向每一位原作者致以诚挚感谢。
+KoeType stands on the shoulders of many great open-source projects. Sincere thanks to every original author.
 
-## 语音识别框架与模型
+## 语音识别框架与模型 / Speech Recognition Framework & Models
 
-- **sherpa-onnx**（[k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)）— 端侧流式语音识别推理框架（Apache-2.0）。作者：csukuangfj 及 k2-fsa 社区。
-- **中文流式识别模型** — [csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30](https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30)（Apache-2.0）
-- **标点恢复模型** — [ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8](https://huggingface.co/ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8)（Apache-2.0）
+- **sherpa-onnx**（[k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)）— 端侧流式语音识别推理框架（Apache-2.0）/ on-device streaming ASR inference framework (Apache-2.0)。作者：csukuangfj 及 k2-fsa 社区 / by csukuangfj and the k2-fsa community。
+- **中文流式识别模型** / Chinese streaming ASR model — [csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30](https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30)（Apache-2.0）
+- **标点恢复模型** / Punctuation model — [ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8](https://huggingface.co/ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8)（Apache-2.0）
 
-## 本地大语言模型
+## 本地大语言模型 / On-device LLMs
 
-- **llama.cpp**（[ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)）— 设备端 LLM 推理引擎（MIT）
-- **Qwen2.5-1.5B / 0.5B Instruct GGUF** — [ModelScope 官方仓库](https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF)（Apache-2.0），作者：阿里巴巴 Qwen 团队
+- **llama.cpp**（[ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)）— 设备端 LLM 推理引擎 / on-device LLM inference engine（MIT）
+- **Qwen2.5-1.5B / 0.5B Instruct GGUF** — [ModelScope 官方仓库 / official repos](https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF)（Apache-2.0），作者：阿里巴巴 Qwen 团队 / by Alibaba Qwen team
 
-## 上游项目
+## 上游项目 / Upstream Project
 
-- **Sayboard**（[ElishaAz/Sayboard](https://github.com/ElishaAz/Sayboard)，GPL-3.0，作者 Elisha Azaria）— KoeType 的移植基础（键盘 UI 与录音交互设计源自该项目）。向原作者致以诚挚感谢。
+- **Sayboard**（[ElishaAz/Sayboard](https://github.com/ElishaAz/Sayboard)，GPL-3.0，作者 / by Elisha Azaria）— KoeType 的产品启发来源之一（语音键盘交互理念）/ one of KoeType's product inspirations (voice keyboard interaction concept)。向原作者致以诚挚感谢 / Sincere thanks to the original author.
 
 再次感谢所有开源贡献者的工作，让本地优先的语音输入成为可能。
+Once again, thank you to all open-source contributors for making local-first voice input possible.

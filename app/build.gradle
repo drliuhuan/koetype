@@ -10,7 +10,7 @@ android {
         minSdk 23
         targetSdk 34
         versionCode 1
-        versionName "1.0"
+        versionName "0.1"
         // 只保留 arm64-v8a，去掉其他 ABI 的 onnxruntime（每份约 21MB），APK 可显著变小
         ndk {
             abiFilters 'arm64-v8a'

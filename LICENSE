@@ -1,54 +1,110 @@
 KoeType License
-================
+===============
 
 Copyright (c) 2026 drliuhuan
 
-本许可证适用于 KoeType 仓库中的全部代码、文档与其他非模型资产。
+Required Notice: Copyright drliuhuan (https://github.com/drliuhuan)
 
-**模型文件版权归各自上游作者所有**，遵循其上游开源许可
-（sherpa-onnx 及其中文识别/标点模型为 Apache-2.0，llama.cpp 为 MIT，
-Qwen2.5 GGUF 为 Apache-2.0），详见 README 模型表格与 THANKS 致谢文件。
-使用模型文件须保留上游版权声明。
+本软件采用 **PolyForm Noncommercial License 1.0.0**（下附官方全文，以英文原文为准）。
+This software is licensed under the **PolyForm Noncommercial License 1.0.0** (official text below; the English original prevails).
 
-一、授予的权利
---------------
+中文摘要 / Chinese Summary
+--------------------------
 
-在遵守本许可证条款的前提下，任何人可以自由地：
+- **非商业用途完全免费**：个人学习、研究、实验、私人使用、慈善/教育/公共机构等
+  均可自由使用、复制、修改与分发（需保留版权声明与本许可文本）。
+- **商业使用必须获得作者书面许可**：任何以营利为目的的产品、服务、集成、
+  销售、租赁或外包交付，须事先联系作者（GitHub Issues）获得书面授权。
+- **模型文件版权归各自上游作者所有**，遵循其上游许可（Apache-2.0 / MIT，
+  详见 README 模型表格与 THANKS 致谢文件），使用与再分发须保留上游版权声明。
 
-1. **使用** —— 以任何合法方式安装、运行和使用本软件；
-2. **复制** —— 复制本软件的全部或部分内容；
-3. **修改** —— 修改、改编、创作衍生作品；
-4. **分发** —— 以源代码或二进制形式分发本软件及其修改版本。
+- Non-commercial use is completely free: personal study, research, experimentation,
+  private use, charitable / educational / public institutions may freely use, copy,
+  modify and distribute (with copyright notice and this license retained).
+- Commercial use requires the author's prior written permission: any for-profit
+  product, service, integration, sale, lease, or outsourced delivery must contact
+  the author (via GitHub Issues) for written authorization.
+- Model files belong to their respective upstream authors and follow their upstream
+  licenses (Apache-2.0 / MIT; see README model table and THANKS). Upstream copyright
+  notices must be retained.
 
-以上权利**免费**授予，无需支付任何费用。
+请以英文原文为准 / The English original below governs.
 
-二、商业使用限制
-----------------
+================================================================================
+PolyForm Noncommercial License 1.0.0
 
-**商业使用**（包括但不限于：将本软件或其修改版本用于商业产品、商业服务、
-以营利为目的的集成、销售、租赁、外包交付）**必须事先获得作者（drliuhuan）
-的书面许可**。
+    https://polyformproject.org/licenses/noncommercial/1.0.0
 
-非商业使用（个人学习、研究、内部使用、开源项目集成）不受此限制。
+    Acceptance
 
-三、条件
---------
+    In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
 
-分发本软件或其修改版本时，必须：
+    Copyright License
 
-1. 保留本许可证文本及版权声明；
-2. 在显著位置注明原作者及修改情况（如有修改）。
+    The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose. However, you may only distribute the software according to Distribution License and make changes or new works based on the software according to Changes and New Works License.
 
-四、免责声明
-------------
+    Distribution License
 
-本软件按"现状"提供，作者不对其适用性、可靠性或完整性作任何明示或暗示的
-保证。因使用本软件造成的任何直接或间接损失，作者不承担任何责任。
+    The licensor grants you an additional copyright license to distribute copies of the software. Your license to distribute covers distributing the software with changes and new works permitted by Changes and New Works License.
 
-五、联系
---------
+    Notices
 
-商业使用授权及任何疑问：通过 GitHub Issues 或仓库联系方式联系作者。
+    You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any plain-text lines beginning with Required Notice: that the licensor provided with the software. For example:
 
----
-KoeType License — 完全开源，免费使用与修改；商业使用须作者书面许可。
+      Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+    Changes and New Works License
+
+    The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
+
+    Patent License
+
+    The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
+
+    Noncommercial Purposes
+
+    Any noncommercial purpose is a permitted purpose.
+
+    Personal Uses
+
+    Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
+
+    Noncommercial Organizations
+
+    Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
+
+    Fair Use
+
+    You may have "fair use" rights for the software under the law. These terms do not limit them.
+
+    No Other Rights
+
+    These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else. These terms do not imply any other licenses.
+
+    Patent Defense
+
+    If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
+
+    Violations
+
+    The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice. Otherwise, all your licenses end immediately.
+
+    No Liability
+
+    As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.
+
+    Definitions
+
+    The licensor is the individual or entity offering these terms, and the software is the software the licensor makes available under these terms.
+
+    You refers to the individual or entity agreeing to these terms.
+
+    Your company is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization. Control means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise. Control can be direct or indirect.
+
+    Your licenses are all the licenses granted to you for the software under these terms.
+
+    Use means anything you do with the software requiring one of your licenses.
+================================================================================
+
+（上述为 PolyForm Noncommercial License 1.0.0 官方全文。)
+(Above is the official text of the PolyForm Noncommercial License 1.0.0.)

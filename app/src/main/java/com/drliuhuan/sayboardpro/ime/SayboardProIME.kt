@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 语音输入法主类（InputMethodService）。
- * 架构参考 Sayboard 的 IME.kt：
+ * 架构参考 Android 官方 InputMethodService 与 Compose 集成文档：
  * - onCreateInputView 返回 [KeyboardView]（Compose）
  * - [SttEngineClient]（IME 侧适配层，识别引擎在 :stt 独立进程常驻）负责识别编排，
  *   结果经 [TextManager] 上屏
@@ -64,7 +64,7 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
     private var inputViewCreated = false
 
     /**
-     * Compose 需要宿主 LifecycleOwner（参考 Sayboard 的 IMELifecycleOwner）。
+     * Compose 需要宿主 LifecycleOwner（见 IMELifecycleOwner，参考 Android 官方 IME + Compose 集成文档）。
      * InputMethodService 没有宿主 Activity，必须手动把 owner 挂到 IME 窗口的 decorView，
      * 否则 AbstractComposeView 组合时会因找不到 ViewTreeLifecycleOwner 而失败/崩溃，
      * 键盘永远显示不出来。
@@ -135,7 +135,7 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         // 在这里构造键盘视图，并先把 Lifecycle/ViewModel/SavedStateRegistry owner 挂到
         // IME 窗口 decorView，再返回给框架 attach。Compose 组合发生在视图 attach 到窗口之后
         // （AbstractComposeView.onAttachedToWindow），此时 decorView 上已有 ViewTreeLifecycleOwner，
-        // 避免 "ViewTreeLifecycleOwner not found" 崩溃。参考 Sayboard 的 IME.kt。
+        // 避免 "ViewTreeLifecycleOwner not found" 崩溃。参考 Android 官方 IME + Compose 集成文档。
         keyboardView = KeyboardView(
             this, engine, correctionStateLD, languageLD, llmEnabledLD, keyboardListener
         )
