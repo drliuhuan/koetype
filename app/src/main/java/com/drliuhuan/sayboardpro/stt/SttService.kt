@@ -251,7 +251,8 @@ class SttService : Service() {
                 .build()
             startForeground(1, notification)
             foregroundStarted = true
-            CrashLogger.d(TAG, "SERVICE: foreground started")
+            // type 由 manifest 的 foregroundServiceType 声明决定（specialUse），startForeground 不传 type
+            CrashLogger.d(TAG, "SERVICE: foreground started (type=specialUse)")
         } catch (e: Exception) {
             // 前台服务启动受限（后台启动限制等）：降级为普通服务，功能不受影响（模型可能被回收）
             CrashLogger.w(TAG, "SERVICE: startForeground failed: ${e.message}")
