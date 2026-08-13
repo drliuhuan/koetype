@@ -445,6 +445,7 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
                 openSettings()
                 return
             }
+            if (!ensureModelDownloaded()) return
             engine.toggle()
         }
 
@@ -454,6 +455,7 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
                 openSettings()
                 return
             }
+            if (!ensureModelDownloaded()) return
             engine.pressDown()
         }
 
@@ -620,6 +622,23 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         hasMicPermission = ActivityCompat.checkSelfPermission(
             this, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * 首次使用语音前检测本地模型是否已下载（复用 [SherpaModelDownloader.scanInstalled]）。
+     * sherpa 模式且未安装任何模型时，一次性 Toast 引导去设置页下载——解决"用户未下载模型
+     * 直接开语音，模型加载很久无反馈"的问题；返回 false 阻断开麦（无模型无法识别）。
+     * 模型已下载（scanInstalled 非空）或在线 API 模式直接放行，不弹提示；
+     * 提示标志用 SharedPreferences 持久化，保证"整个应用只提示一次，别每句话都弹"。
+     */
+    private fun ensureModelDownloaded(): Boolean {
+        if (prefs.activeProvider != AppPrefs.PROVIDER_SHERPA) return true
+        if (SherpaModelDownloader.scanInstalled(this).isNotEmpty()) return true
+        if (!prefs.modelMissingTipShown) {
+            prefs.modelMissingTipShown = true
+            Toast.makeText(this, R.string.ime_model_missing_onboarding, Toast.LENGTH_SHORT).show()
+        }
+        return false
     }
 
     companion object {

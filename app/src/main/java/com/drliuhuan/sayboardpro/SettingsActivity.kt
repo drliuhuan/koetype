@@ -8,9 +8,11 @@ import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.drliuhuan.sayboardpro.ui.SettingsScreen
+import com.drliuhuan.sayboardpro.ui.SettingsTheme
 
 /**
  * 设置页（也是启动入口）。
@@ -42,19 +44,22 @@ class SettingsActivity : ComponentActivity() {
 
         val section = intent.getStringExtra(EXTRA_SECTION)
         setContent {
-            SettingsScreen(
-                initialSection = section,
-                micGranted = micGranted.value,
-                imeEnabled = imeEnabled.value,
-                onRequestMic = {
-                    ActivityCompat.requestPermissions(
-                        this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MIC
-                    )
-                },
-                onOpenImeSettings = {
-                    startActivity(Intent("android.settings.INPUT_METHOD_SETTINGS"))
-                }
-            )
+            val prefs = remember { AppPrefs(this) }
+            SettingsTheme(prefs) {
+                SettingsScreen(
+                    initialSection = section,
+                    micGranted = micGranted.value,
+                    imeEnabled = imeEnabled.value,
+                    onRequestMic = {
+                        ActivityCompat.requestPermissions(
+                            this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MIC
+                        )
+                    },
+                    onOpenImeSettings = {
+                        startActivity(Intent("android.settings.INPUT_METHOD_SETTINGS"))
+                    }
+                )
+            }
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +23,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Colors
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
+import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalConfiguration
@@ -104,7 +109,7 @@ class KeyboardView(
             if (isPortrait) baseFraction else (baseFraction + 0.15f).coerceAtMost(0.65f)
         val height = (LocalConfiguration.current.screenHeightDp * heightFraction).toInt().dp
 
-        SayboardProTheme {
+        SayboardProTheme(prefs) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -651,14 +656,61 @@ data class CorrectionUiState(
 private data class SymbolKey(val zh: String, val en: String)
 
 @Composable
-fun SayboardProTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colors = lightColors(
+fun SayboardProTheme(prefs: AppPrefs, content: @Composable () -> Unit) {
+    val systemDark = isSystemInDarkTheme()
+    MaterialTheme(colors = keyboardColors(prefs, systemDark), content = content)
+}
+
+/**
+ * 按 [AppPrefs.keyboardTheme] 构建键盘配色：
+ * - 浅色（默认）：保持现有外观（绿 #2E7D32 / 橙 / 浅灰底 / 白按键）；
+ * - 深色：深底 + 浅绿主色；
+ * - 自定义：用户设置的前景（文字/图标）与背景色，按键色按背景明暗自动微调；
+ * - 跟随系统：按系统深色模式二选一。
+ */
+@Composable
+private fun keyboardColors(prefs: AppPrefs, systemDark: Boolean): Colors {
+    return when (prefs.keyboardTheme) {
+        AppPrefs.THEME_DARK -> darkColors(
+            primary = Color(0xFF81C784),
+            secondary = Color(0xFFFFB74D),
+            background = Color(0xFF121212),
+            surface = Color(0xFF1E1E1E)
+        )
+        AppPrefs.THEME_LIGHT -> lightColors(
             primary = Color(0xFF2E7D32),
             secondary = Color(0xFFFF9800),
             background = Color(0xFFF5F5F5),
             surface = Color.White
-        ),
-        content = content
-    )
+        )
+        AppPrefs.THEME_CUSTOM -> {
+            val bg = Color(prefs.keyboardBackgroundColor)
+            val fg = Color(prefs.keyboardForegroundColor)
+            val isLightBg = bg.luminance() > 0.5f
+            val surface = if (isLightBg) lerp(bg, Color.Black, 0.05f) else lerp(bg, Color.White, 0.08f)
+            lightColors(
+                primary = if (isLightBg) Color(0xFF2E7D32) else Color(0xFF81C784),
+                secondary = Color(0xFFFF9800),
+                background = bg,
+                surface = surface,
+                onSurface = fg,
+                onBackground = fg
+            )
+        }
+        else -> if (systemDark) {
+            darkColors(
+                primary = Color(0xFF81C784),
+                secondary = Color(0xFFFFB74D),
+                background = Color(0xFF121212),
+                surface = Color(0xFF1E1E1E)
+            )
+        } else {
+            lightColors(
+                primary = Color(0xFF2E7D32),
+                secondary = Color(0xFFFF9800),
+                background = Color(0xFFF5F5F5),
+                surface = Color.White
+            )
+        }
+    }
 }

@@ -8,7 +8,8 @@ import com.drliuhuan.sayboardpro.CrashLogger
 import com.drliuhuan.sayboardpro.net.ProxyHelper
 import java.io.BufferedInputStream
 import java.io.File
-import java.io.FileOutputStream
+import java.io.RandomAccessFile
+import java.net.HttpURLConnection
 import java.security.MessageDigest
 
 /**
@@ -275,7 +276,7 @@ object SherpaModelDownloader {
                     prefs
                 ) { frac -> callback.onProgress(frac * 0.7f) }
                 if (!modelOk) {
-                    Constants.deleteRecursive(targetDir)
+                    // 保留半截文件供下次断点续传（不再整目录删除）
                     callback.onError("网络或代理异常导致下载失败：$PUNCT_MODEL_FILE，所有镜像均不可用，请重试")
                     return@Thread
                 }
@@ -291,7 +292,7 @@ object SherpaModelDownloader {
                     }
                 }
                 if (!vocabOk) {
-                    Constants.deleteRecursive(targetDir)
+                    // 保留已下载的模型主体（75MB）与半截词表，下次续传不再重下
                     callback.onError("网络或代理异常导致下载失败：词表文件，所有镜像均不可用，请重试")
                     return@Thread
                 }
@@ -356,7 +357,7 @@ object SherpaModelDownloader {
                 }
 
                 // SHA-256 硬校验：字节数一致还不够，用已知哈希锚定包内容，防篡改/损坏。
-                // 不匹配时删除临时文件并失败返回（tempFile 也会被 finally 兜底清理）。
+                // 不匹配时删除临时文件并失败返回（损坏内容无续传价值）。
                 if (!verifySha256(tempFile, GITHUB_MODELS_ZIP_SHA256)) {
                     tempFile.delete()
                     callback.onError("模型包完整性校验失败（SHA-256 不匹配），请重新下载")
@@ -387,6 +388,7 @@ object SherpaModelDownloader {
                 if (!sherpaOk || !punctOk) {
                     if (sherpaDir.exists()) Constants.deleteRecursive(sherpaDir)
                     if (punctDir.exists()) Constants.deleteRecursive(punctDir)
+                    tempFile.delete()
                     callback.onError("解压失败：zip 包内容不符合预期（缺少模型文件），请重新下载")
                     return@Thread
                 }
@@ -395,20 +397,23 @@ object SherpaModelDownloader {
                 if (!validateModelDir(sherpaDir) || !validatePunctDir(punctDir)) {
                     if (sherpaDir.exists()) Constants.deleteRecursive(sherpaDir)
                     if (punctDir.exists()) Constants.deleteRecursive(punctDir)
+                    tempFile.delete()
                     callback.onError("模型文件下载不完整（zip 校验失败），请重试")
                     return@Thread
                 }
 
                 prefs.sherpaModelPath = sherpaDir.absolutePath
                 prefs.punctModelPath = punctDir.absolutePath
+                // 下载+校验+解压全部成功：清理断点临时文件（断点记录即半截 zip，随成功删除）
+                tempFile.delete()
                 callback.onProgress(1f)
                 callback.onSuccess(sherpaDir)
             } catch (e: Exception) {
                 Log.e(TAG, "github bundle download failed", e)
+                // 保留 tempFile 半截文件供下次断点续传
                 callback.onError(e.message ?: "下载失败")
             } finally {
                 githubBundleDownloading = false
-                if (tempFile.exists()) tempFile.delete()
             }
         }.start()
     }
@@ -442,7 +447,7 @@ object SherpaModelDownloader {
                         callback.onProgress(0.9f * (index + frac) / total)
                     }
                     if (!ok) {
-                        Constants.deleteRecursive(targetDir)
+                        // 保留已下载的半截文件供下次断点续传（不再整目录删除）
                         callback.onError("网络或代理异常导致下载失败：${file.remoteName}，所有镜像均不可用，请重试")
                         return@Thread
                     }
@@ -523,22 +528,25 @@ object SherpaModelDownloader {
                 val targetDir = Constants.getSherpaModelDir(context, modelName)
                 if (!ZipTools.extractZipTo(tempFile, targetDir)) {
                     Constants.deleteRecursive(targetDir)
+                    tempFile.delete()
                     callback.onError("解压失败：不是有效的 zip 压缩包")
                     return@Thread
                 }
                 if (!validateModelDir(targetDir)) {
                     Constants.deleteRecursive(targetDir)
+                    tempFile.delete()
                     callback.onError("不是有效的 sherpa 模型包（缺少 encoder/decoder/joiner/tokens）")
                     return@Thread
                 }
                 callback.onProgress(1f)
                 AppPrefs(context).sherpaModelPath = targetDir.absolutePath
+                // 成功：清理断点临时文件
+                tempFile.delete()
                 callback.onSuccess(targetDir)
             } catch (e: Exception) {
                 Log.e(TAG, "zip download failed", e)
+                // 保留 tempFile 半截文件供下次断点续传
                 callback.onError(e.message ?: "下载失败")
-            } finally {
-                if (tempFile.exists()) tempFile.delete()
             }
         }.start()
     }
@@ -559,8 +567,8 @@ object SherpaModelDownloader {
             } catch (e: Exception) {
                 Log.w(TAG, "mirror failed: $url", e)
             }
-            // 失败尝试下一个镜像；target 残留的文件先清掉
-            if (target.exists()) target.delete()
+            // 失败尝试下一个镜像；保留 target 残留（半截文件）供下一镜像用 Range 续传，
+            // downloadFile 内部会在服务端不支持 Range 时删除并全量重下
         }
         return false
     }
@@ -603,12 +611,14 @@ object SherpaModelDownloader {
     }
 
     /**
-     * 下载 [url] 到 [target]，返回是否成功。失败时删除 target 残留并返回 false
-     * （由调用方回退下一镜像）。
+     * 下载 [url] 到 [target]，返回是否成功。支持断点续传：目标文件已存在（半截文件）
+     * 时带 HTTP Range 头从断点继续；服务端忽略 Range（返回 200）或 Range 越界（416，
+     * 半截文件恰好等于/超过总大小）时删除残留全量重下。失败时**保留**残留文件供下次
+     * 续传（网络中断/杀进程后重进设置页续传的主路径），由调用方回退下一镜像。
      *
      * 校验强化（问题 3）：
-     * 1. HTTP 非 2xx / Content-Type 为 HTML 错误页（代理损坏数据）→ 拒收；
-     * 2. Content-Length 与实收字节不一致（截断/代理串流）→ 判损坏；
+     * 1. HTTP 非 200/206 / Content-Type 为 HTML 错误页（代理损坏数据）→ 拒收；
+     * 2. Content-Length/Content-Range 与实收字节不一致（截断/代理串流）→ 判损坏；
      * 3. 二进制模型文件需满足最小大小 + ONNX 魔数，文本资产（tokens/bpe）仅要求非空。
      */
     private fun downloadFile(
@@ -621,58 +631,99 @@ object SherpaModelDownloader {
         // 代理认证作用域覆盖连接全生命周期（建连 → 传输 → 断开）；
         // SOCKS 带认证不受支持（忽略用户名密码，由 open() 记录日志提示）
         ProxyHelper.withProxy(prefs, ProxyHelper.Usage.DOWNLOAD) { proxy ->
-            val conn = ProxyHelper.open(url, proxy, prefs)
             try {
-                conn.connectTimeout = 15000
-                conn.readTimeout = 30000
-                conn.requestMethod = "GET"
-                conn.instanceFollowRedirects = true
+                var existing = if (target.exists()) target.length() else 0L
+                var conn = openDownloadConnection(url, proxy, prefs, existing)
+                try {
+                    var code = conn.responseCode
 
-                val code = conn.responseCode
-                if (code !in 200..299) {
-                    Log.w(TAG, "HTTP $code for $url")
-                    target.delete()
-                    return@withProxy false
-                }
+                    // 服务端忽略 Range（200）或 Range 越界（416）：删除残留，重开连接全量重下
+                    if (existing > 0 &&
+                        (code == HttpURLConnection.HTTP_OK || code == 416)
+                    ) {
+                        conn.disconnect()
+                        if (!target.delete()) {
+                            Log.w(TAG, "Cannot delete stale file ${target.name}")
+                            return@withProxy false
+                        }
+                        existing = 0L
+                        conn = openDownloadConnection(url, proxy, prefs, 0L)
+                        code = conn.responseCode
+                    }
 
-                // 代理/镜像可能把错误页当 200 返回：HTML body 一律拒收
-                if (isHtmlContentType(conn.contentType)) {
-                    Log.w(TAG, "Rejecting HTML body for $url (contentType=${conn.contentType})")
-                    target.delete()
-                    return@withProxy false
-                }
+                    if (code != HttpURLConnection.HTTP_OK && code != HttpURLConnection.HTTP_PARTIAL) {
+                        Log.w(TAG, "HTTP $code for $url")
+                        return@withProxy false
+                    }
 
-                val expected = conn.contentLengthLong
-                var downloaded = 0L
-                FileOutputStream(target).use { out ->
-                    BufferedInputStream(conn.inputStream).use { input ->
-                        val buffer = ByteArray(16 * 1024)
-                        var n: Int
-                        while (input.read(buffer).also { n = it } >= 0) {
-                            out.write(buffer, 0, n)
-                            downloaded += n
-                            if (expected > 0) {
-                                onProgress((downloaded.toFloat() / expected).coerceIn(0f, 1f))
+                    // 代理/镜像可能把错误页当 200/206 返回：HTML body 一律拒收
+                    if (isHtmlContentType(conn.contentType)) {
+                        Log.w(TAG, "Rejecting HTML body for $url (contentType=${conn.contentType})")
+                        return@withProxy false
+                    }
+
+                    val resumed = code == HttpURLConnection.HTTP_PARTIAL
+                    val startOffset = if (resumed) existing else 0L
+                    val total = resolveTotalBytes(conn, startOffset)
+                    var written = startOffset
+                    RandomAccessFile(target, "rw").use { raf ->
+                        raf.seek(startOffset)
+                        BufferedInputStream(conn.inputStream).use { input ->
+                            val buffer = ByteArray(16 * 1024)
+                            var n: Int
+                            while (input.read(buffer).also { n = it } >= 0) {
+                                raf.write(buffer, 0, n)
+                                written += n
+                                if (total > 0) {
+                                    onProgress((written.toFloat() / total).coerceIn(0f, 1f))
+                                }
                             }
                         }
                     }
-                }
 
-                if (!validateDownloaded(target.name, target, expected, downloaded, expectedSize)) {
-                    target.delete()
-                    return@withProxy false
-                }
+                    if (!validateDownloaded(target.name, target, total, written, expectedSize)) {
+                        target.delete()
+                        return@withProxy false
+                    }
 
-                onProgress(1f)
-                true
+                    onProgress(1f)
+                    true
+                } finally {
+                    conn.disconnect()
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "download failed: $url", e)
-                target.delete()
+                // 保留残留文件：网络中断/超时是断点续传的主场景
                 false
-            } finally {
-                conn.disconnect()
             }
         }
+
+    /** 打开下载连接；目标已有 [existingBytes] 字节时带 Range 头请求续传 */
+    private fun openDownloadConnection(
+        url: String,
+        proxy: java.net.Proxy?,
+        prefs: AppPrefs,
+        existingBytes: Long
+    ): HttpURLConnection {
+        val conn = ProxyHelper.open(url, proxy, prefs)
+        conn.connectTimeout = 15000
+        conn.readTimeout = 30000
+        conn.requestMethod = "GET"
+        conn.instanceFollowRedirects = true
+        if (existingBytes > 0) {
+            conn.setRequestProperty("Range", "bytes=$existingBytes-")
+        }
+        return conn
+    }
+
+    /** 期望总字节数：206 用 Content-Range 的 total，200 用 Content-Length；未知返回 -1 */
+    private fun resolveTotalBytes(conn: HttpURLConnection, resumedBytes: Long): Long {
+        val contentRange = conn.getHeaderField("Content-Range")
+        val totalFromRange = contentRange?.substringAfterLast('/')?.trim()?.toLongOrNull()
+        if (totalFromRange != null && totalFromRange > 0) return totalFromRange
+        val length = conn.contentLengthLong
+        return if (length > 0) resumedBytes + length else -1
+    }
 
     /** 计算文件 SHA-256 并与期望十六进制串比对（忽略大小写）；文件缺失/IO 异常/不匹配均返回 false。 */
     private fun verifySha256(file: File, expectedHex: String): Boolean {

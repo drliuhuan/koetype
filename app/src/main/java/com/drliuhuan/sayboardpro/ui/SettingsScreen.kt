@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +46,8 @@ import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.TopAppBar
+import androidx.compose.material.darkColors
+import androidx.compose.material.lightColors
 import androidx.compose.material.rememberDrawerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -62,7 +66,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -105,7 +112,35 @@ import java.io.OutputStreamWriter
 import java.util.Locale
 
 /**
- * 设置页主界面：七个分区（识别与模型 / 词典 / 录音 / LLM 纠错 / 代理 / 日志 / 关于）。
+ * 设置页主题：按 [AppPrefs.appTheme] 选择浅色/深色，默认跟随系统。
+ * 颜色沿用应用品牌绿（#2E7D32），深色主题用浅绿，与语音键盘配色保持一致。
+ */
+@Composable
+fun SettingsTheme(prefs: AppPrefs, content: @Composable () -> Unit) {
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (prefs.appTheme) {
+        AppPrefs.THEME_DARK -> true
+        AppPrefs.THEME_LIGHT -> false
+        else -> systemDark
+    }
+    MaterialTheme(
+        colors = if (dark) {
+            darkColors(
+                primary = Color(0xFF81C784),
+                secondary = Color(0xFFFFB74D)
+            )
+        } else {
+            lightColors(
+                primary = Color(0xFF2E7D32),
+                secondary = Color(0xFFFF9800)
+            )
+        },
+        content = content
+    )
+}
+
+/**
+ * 设置页主界面：八个分区（识别与模型 / 词典 / 录音 / LLM 纠错 / 代理 / 日志 / 外观 / 关于）。
  * "识别服务"与"Sherpa 模型"已合并为"识别与模型"：顶部识别引擎选择（本地模型/在线 API），
  * 本地模型 UI 只在选"本地模型"时启用，在线 API 模式显示供应商预置与配置。
  * 分区较多、顶部 Tab 在窄屏放不下，改为左侧抽屉（ModalDrawer）导航：点击顶部 ≡ 打开抽屉，
@@ -129,13 +164,14 @@ fun SettingsScreen(
         SettingsScreenSections.LLM -> 3
         SettingsScreenSections.PROXY -> 4
         SettingsScreenSections.LOGS -> 5
+        SettingsScreenSections.APPEARANCE -> 6
         else -> 0
     }
     var selectedIndex by remember { mutableIntStateOf(initialIndex) }
     // 词性记忆：记住上一次添加词汇用的词性，进程内有效（进程重启=刚打开=默认"名词"）
     var lastAddedPos by remember { mutableStateOf(PartOfSpeech.NOUN) }
     // 识别服务与模型管理已合并为"识别与模型"分区（本地模型 / 在线 API 二选一）
-    val tabs = listOf("识别与模型", "词典", "录音", "LLM 纠错", "代理", "日志", "关于")
+    val tabs = listOf("识别与模型", "词典", "录音", "LLM 纠错", "代理", "日志", "外观", "关于")
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -246,7 +282,8 @@ fun SettingsScreen(
                     3 -> LlmSection(prefs)
                     4 -> ProxySection(prefs)
                     5 -> LogsSection(context)
-                    6 -> AboutSection(prefs)
+                    6 -> AppearanceSection(prefs)
+                    7 -> AboutSection(prefs)
                 }
             }
         }
@@ -1036,20 +1073,16 @@ private fun parseModelIds(body: String): List<String> {
 @Composable
 private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
     var refreshKey by remember { mutableIntStateOf(0) }
-    var downloadingName by remember { mutableStateOf<String?>(null) }
-    var downloadProgress by remember { mutableFloatStateOf(0f) }
-    var downloadError by remember { mutableStateOf<String?>(null) }
     var customUrl by remember { mutableStateOf("") }
-
-    // 标点模型（本地断句加标点）下载状态
-    var punctDownloading by remember { mutableStateOf(false) }
-    var punctProgress by remember { mutableFloatStateOf(0f) }
-    var punctError by remember { mutableStateOf<String?>(null) }
 
     // 删除确认对话框目标：ASR 模型目录
     var deleteTarget by remember { mutableStateOf<File?>(null) }
 
-    val installed = remember(refreshKey) { SherpaModelDownloader.scanInstalled(context) }
+    // 下载状态由进程级 SherpaModelDownloadManager 持有：离开设置页后下载线程仍在跑，
+    // 回到设置页读到的仍是进行中的进度；finishedVersion 变化驱动"已下载"列表与按钮刷新
+    val installed = remember(refreshKey, SherpaModelDownloadManager.finishedVersion) {
+        SherpaModelDownloader.scanInstalled(context)
+    }
     val currentPath = prefs.sherpaModelPath
 
     // 模型下载源单选（GitHub 整包 / HuggingFace 多镜像），随本地模型启用
@@ -1061,70 +1094,6 @@ private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
             val dir = File(currentPath)
             dir.isDirectory && SherpaModelDownloader.validateModelDir(dir)
         }.getOrDefault(false)
-    }
-
-    /** 启动一次标点模型下载（下载按钮与"重新下载"共用） */
-    fun startPunctDownload() {
-        if (punctDownloading) return
-        punctDownloading = true
-        punctProgress = 0f
-        punctError = null
-        SherpaModelDownloader.downloadPunctModel(
-            context,
-            object : SherpaModelDownloader.Callback {
-                override fun onProgress(progress: Float) {
-                    punctProgress = progress
-                }
-
-                override fun onSuccess(modelDir: File) {
-                    punctDownloading = false
-                    punctError = null
-                    refreshKey++
-                }
-
-                override fun onError(message: String) {
-                    punctDownloading = false
-                    punctError = message
-                }
-            }
-        )
-    }
-
-    /** 启动一次 ASR 预设下载（下载按钮与"重新下载"共用） */
-    fun startPresetDownload(preset: SherpaModelDownloader.ModelPreset) {
-        if (downloadingName != null) return // 已有下载在跑
-        downloadingName = preset.name
-        downloadProgress = 0f
-        downloadError = null
-        SherpaModelDownloader.downloadAndInstall(
-            context, preset,
-            object : SherpaModelDownloader.Callback {
-                override fun onProgress(progress: Float) {
-                    downloadProgress = progress
-                }
-
-                override fun onSuccess(modelDir: File) {
-                    downloadingName = null
-                    downloadError = null
-                    prefs.sherpaModelPath = modelDir.absolutePath
-                    // 标点模型"绑定下载"：GitHub 整包已内含标点；HF 单文件模式下下载器
-                    // 已随 ASR 串行补下标点（见 downloadAndInstall），此处仅当标点仍缺失时
-                    // 再补一次重试（下载器内标点失败不阻塞 ASR 成功，靠这里兜底重拉）
-                    if (preset.name == SherpaModelDownloader.GITHUB_ZH_INT8_PRESET_NAME &&
-                        AppPrefs(context).downloadSource == AppPrefs.DOWNLOAD_SOURCE_HF &&
-                        SherpaModelDownloader.scanPunctInstalled(context) == null
-                    ) {
-                        startPunctDownload()
-                    }
-                    refreshKey++
-                }
-
-                override fun onError(message: String) {
-                    downloadingName = null
-                    downloadError = message
-                }
-            }
-        )
     }
 
     /** 删除 ASR 模型目录；正在使用则清空当前模型路径（下次识别提示"模型未下载"而非崩溃） */
@@ -1187,7 +1156,7 @@ private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
                             if (modelDir.absolutePath == prefs.sherpaModelPath) prefs.sherpaModelPath = ""
                             if (modelDir.exists()) Constants.deleteRecursive(modelDir)
                             refreshKey++
-                            startPresetDownload(preset)
+                            SherpaModelDownloadManager.startPreset(context, preset)
                         }) {
                             Text(stringResource(R.string.common_redownload))
                         }
@@ -1200,30 +1169,37 @@ private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
 
     SectionCard("下载模型") {
         SherpaModelDownloader.PRESETS.forEach { preset ->
+            val key = "preset:${preset.name}"
+            val state = SherpaModelDownloadManager.states[key]
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(preset.label, modifier = Modifier.weight(1f))
-                if (downloadingName == preset.name) {
+                if (state?.running == true) {
                     LinearProgressIndicator(
-                        progress = downloadProgress,
+                        progress = state.progress.coerceIn(0f, 1f),
                         modifier = Modifier.width(100.dp)
                     )
                 } else {
                     Button(
-                        onClick = { startPresetDownload(preset) }
+                        onClick = { SherpaModelDownloadManager.startPreset(context, preset) }
                     ) { Text(stringResource(R.string.settings_sherpa_download)) }
                 }
             }
         }
 
-        downloadError?.let {
+        val presetError = SherpaModelDownloader.PRESETS
+            .mapNotNull { SherpaModelDownloadManager.states["preset:${it.name}"]?.error }
+            .firstOrNull()
+        presetError?.let {
             Text(it, color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
         }
 
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
+        val zipKey = "zip:${customUrl.trim()}"
+        val zipState = SherpaModelDownloadManager.states[zipKey]
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = customUrl,
@@ -1232,9 +1208,9 @@ private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            if (downloadingName == customUrl.trim() && customUrl.isNotBlank()) {
+            if (zipState?.running == true && customUrl.isNotBlank()) {
                 LinearProgressIndicator(
-                    progress = downloadProgress,
+                    progress = zipState.progress.coerceIn(0f, 1f),
                     modifier = Modifier.width(100.dp)
                 )
             } else {
@@ -1242,33 +1218,14 @@ private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
                     enabled = customUrl.isNotBlank(),
                     onClick = {
                         val url = customUrl.trim()
-                        if (downloadingName != null) return@Button // 已有下载在跑
-                        downloadingName = url
-                        downloadProgress = 0f
-                        downloadError = null
-                        SherpaModelDownloader.downloadAndInstallZip(
-                            context, url,
-                            object : SherpaModelDownloader.Callback {
-                                override fun onProgress(progress: Float) {
-                                    downloadProgress = progress
-                                }
-
-                                override fun onSuccess(modelDir: File) {
-                                    downloadingName = null
-                                    downloadError = null
-                                    prefs.sherpaModelPath = modelDir.absolutePath
-                                    refreshKey++
-                                }
-
-                                override fun onError(message: String) {
-                                    downloadingName = null
-                                    downloadError = message
-                                }
-                            }
-                        )
+                        if (url.isBlank()) return@Button
+                        SherpaModelDownloadManager.startZip(context, url)
                     }
                 ) { Text(stringResource(R.string.settings_sherpa_download)) }
             }
+        }
+        zipState?.error?.let {
+            Text(it, color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
         }
     }
 
@@ -2182,6 +2139,109 @@ private fun hasLocalModel(prefs: AppPrefs): Boolean {
 }
 
 /**
+ * Sherpa 模型（ASR 预设 / 标点 / 自定义 zip）下载状态管理：进程级单例，独立于 Compose 组合。
+ * 下载线程由 [SherpaModelDownloader] 在普通 Thread 上跑，不随 Activity 生命周期取消；
+ * 回调只写本对象的状态（mutableStateMapOf），不引用已销毁的 Compose 状态/Activity，
+ * 因此离开设置页后下载继续、回来能读到最新进度，也避免"回来进度归零/重复开下"。
+ * 断点续传由 [SherpaModelDownloader.downloadFile] 的 Range 头负责（半截文件落盘续传）。
+ */
+private object SherpaModelDownloadManager {
+    data class DownloadState(
+        val progress: Float = 0f,
+        val running: Boolean = false,
+        val error: String? = null
+    )
+
+    val states = mutableStateMapOf<String, DownloadState>()
+
+    /** 下载/删除完成时自增，驱动列表重组刷新"已下载/未下载"与进度 */
+    var finishedVersion by mutableStateOf(0)
+        private set
+
+    private fun keyFor(preset: SherpaModelDownloader.ModelPreset) = "preset:${preset.name}"
+    private fun keyForPunct() = "punct"
+    private fun keyForZip(url: String) = "zip:$url"
+
+    fun startPreset(context: Context, preset: SherpaModelDownloader.ModelPreset) {
+        val key = keyFor(preset)
+        if (states[key]?.running == true) return
+        states[key] = DownloadState(running = true)
+        val appContext = context.applicationContext
+        SherpaModelDownloader.downloadAndInstall(
+            appContext, preset,
+            object : SherpaModelDownloader.Callback {
+                override fun onProgress(progress: Float) {
+                    states[key] = DownloadState(progress = progress, running = true)
+                }
+
+                override fun onSuccess(modelDir: File) {
+                    states[key] = DownloadState(progress = 1f, running = false)
+                    finishedVersion++
+                    // 标点模型"绑定下载"：GitHub 整包已内含标点；HF 单文件模式下下载器
+                    // 已随 ASR 串行补下标点（见 downloadAndInstall），此处仅当标点仍缺失时
+                    // 再补一次重试（下载器内标点失败不阻塞 ASR 成功，靠这里兜底重拉）
+                    if (preset.name == SherpaModelDownloader.GITHUB_ZH_INT8_PRESET_NAME &&
+                        AppPrefs(appContext).downloadSource == AppPrefs.DOWNLOAD_SOURCE_HF &&
+                        SherpaModelDownloader.scanPunctInstalled(appContext) == null
+                    ) {
+                        startPunct(appContext)
+                    }
+                }
+
+                override fun onError(message: String) {
+                    states[key] = DownloadState(running = false, error = message)
+                    finishedVersion++
+                }
+            }
+        )
+    }
+
+    fun startPunct(context: Context) {
+        val key = keyForPunct()
+        if (states[key]?.running == true) return
+        states[key] = DownloadState(running = true)
+        val appContext = context.applicationContext
+        SherpaModelDownloader.downloadPunctModel(appContext, object : SherpaModelDownloader.Callback {
+            override fun onProgress(progress: Float) {
+                states[key] = DownloadState(progress = progress, running = true)
+            }
+
+            override fun onSuccess(modelDir: File) {
+                states[key] = DownloadState(progress = 1f, running = false)
+                finishedVersion++
+            }
+
+            override fun onError(message: String) {
+                states[key] = DownloadState(running = false, error = message)
+                finishedVersion++
+            }
+        })
+    }
+
+    fun startZip(context: Context, url: String) {
+        val key = keyForZip(url)
+        if (states[key]?.running == true) return
+        states[key] = DownloadState(running = true)
+        val appContext = context.applicationContext
+        SherpaModelDownloader.downloadAndInstallZip(appContext, url, object : SherpaModelDownloader.Callback {
+            override fun onProgress(progress: Float) {
+                states[key] = DownloadState(progress = progress, running = true)
+            }
+
+            override fun onSuccess(modelDir: File) {
+                states[key] = DownloadState(progress = 1f, running = false)
+                finishedVersion++
+            }
+
+            override fun onError(message: String) {
+                states[key] = DownloadState(running = false, error = message)
+                finishedVersion++
+            }
+        })
+    }
+}
+
+/**
  * 本地 GGUF 模型下载的状态管理。独立于 Compose 组合：离开设置页后下载仍在继续，
  * 回到设置页能读到最新进度。断点续传由 [ModelDownloader.download] 负责（Range 头）。
  */
@@ -2374,6 +2434,116 @@ private object SettingsScreenSections {
     const val LLM = "llm"
     const val PROXY = "proxy"
     const val LOGS = "logs"
+    const val APPEARANCE = "appearance"
+}
+
+// ── 分区 6：外观（设置界面主题 + 语音键盘主题） ────────────────────
+
+/** 自定义颜色预设色板：既可直接点选，也作为色值参考（含默认前景/背景） */
+private val KEYBOARD_COLOR_PRESETS = listOf(
+    Color(0xFF202124), // 深灰（默认前景）
+    Color(0xFFFFFFFF), // 白（默认背景）
+    Color(0xFF000000), // 黑
+    Color(0xFFF5F5F5), // 浅灰
+    Color(0xFF424242), // 中灰
+    Color(0xFF121212), // 近黑
+    Color(0xFF2E7D32), // 绿
+    Color(0xFF1E88E5), // 蓝
+    Color(0xFFE53935), // 红
+    Color(0xFFFF9800)  // 橙
+)
+
+@Composable
+private fun AppearanceSection(prefs: AppPrefs) {
+    var appTheme by remember { mutableStateOf(prefs.appTheme) }
+    var keyboardTheme by remember { mutableStateOf(prefs.keyboardTheme) }
+
+    SectionCard("设置界面主题") {
+        Text("选择设置页的明暗外观；默认跟随系统。", style = MaterialTheme.typography.caption)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = appTheme == AppPrefs.THEME_SYSTEM, onClick = {
+                appTheme = AppPrefs.THEME_SYSTEM; prefs.appTheme = appTheme
+            })
+            Text("跟随系统")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = appTheme == AppPrefs.THEME_LIGHT, onClick = {
+                appTheme = AppPrefs.THEME_LIGHT; prefs.appTheme = appTheme
+            })
+            Text("浅色")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = appTheme == AppPrefs.THEME_DARK, onClick = {
+                appTheme = AppPrefs.THEME_DARK; prefs.appTheme = appTheme
+            })
+            Text("深色")
+        }
+    }
+
+    SectionCard("语音键盘主题") {
+        Text("选择键盘配色；重新弹出键盘后生效。", style = MaterialTheme.typography.caption)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = keyboardTheme == AppPrefs.THEME_SYSTEM, onClick = {
+                keyboardTheme = AppPrefs.THEME_SYSTEM; prefs.keyboardTheme = keyboardTheme
+            })
+            Text("跟随系统")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = keyboardTheme == AppPrefs.THEME_LIGHT, onClick = {
+                keyboardTheme = AppPrefs.THEME_LIGHT; prefs.keyboardTheme = keyboardTheme
+            })
+            Text("浅色")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = keyboardTheme == AppPrefs.THEME_DARK, onClick = {
+                keyboardTheme = AppPrefs.THEME_DARK; prefs.keyboardTheme = keyboardTheme
+            })
+            Text("深色")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = keyboardTheme == AppPrefs.THEME_CUSTOM, onClick = {
+                keyboardTheme = AppPrefs.THEME_CUSTOM; prefs.keyboardTheme = keyboardTheme
+            })
+            Text("自定义")
+        }
+    }
+
+    if (keyboardTheme == AppPrefs.THEME_CUSTOM) {
+        SectionCard("自定义颜色") {
+            Text("点选色板设置前景色与背景色。", style = MaterialTheme.typography.caption)
+            ColorSwatchRow("前景色（文字/图标）", prefs.keyboardForegroundColor) { argb ->
+                prefs.keyboardForegroundColor = argb
+            }
+            ColorSwatchRow("背景色", prefs.keyboardBackgroundColor) { argb ->
+                prefs.keyboardBackgroundColor = argb
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorSwatchRow(label: String, currentArgb: Int, onPick: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.subtitle2)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            KEYBOARD_COLOR_PRESETS.forEach { c ->
+                val argb = c.toArgb()
+                val selected = argb == currentArgb
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(c)
+                        .clickable { onPick(argb) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selected) {
+                        Text("✓", color = if (c.luminance() > 0.5f) Color.Black else Color.White)
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ── 关于 KoeType（版本 / GitHub / 许可 / 致谢 / 捐赠） ────────────────

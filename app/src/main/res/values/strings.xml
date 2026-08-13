@@ -22,6 +22,7 @@
     <string name="ime_llm_settings">LLM 纠错设置</string>
     <string name="toast_en_model_missing">英文模型未下载，请到设置页下载</string>
     <string name="toast_zh_model_missing">中文模型未下载，请到设置页下载</string>
+    <string name="ime_model_missing_onboarding">尚未下载语音模型，请去设置 → 下载模型后再使用语音输入</string>
 
     <!-- LLM 纠错状态条 -->
     <string name="ime_correcting">正在纠错…</string>

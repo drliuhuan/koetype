@@ -50,6 +50,12 @@ class AppPrefs(context: Context) {
         const val DOWNLOAD_SOURCE_GITHUB = "github"
         const val DOWNLOAD_SOURCE_HF = "hf"
 
+        // 主题模式取值（设置界面 / 语音键盘共用）
+        const val THEME_SYSTEM = "system"
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+        const val THEME_CUSTOM = "custom"
+
         // 键名
         private const val KEY_PROVIDER = "stt_provider"
         private const val KEY_WHISPER_BASE_URL = "whisper_base_url"
@@ -73,6 +79,9 @@ class AppPrefs(context: Context) {
         // 设置页推荐系统输入法的一次性提示（task49c：引导不强制）
         private const val KEY_SETTINGS_IME_TIP_SHOWN = "settings_ime_tip_shown"
 
+        // 键盘语音"未下载模型"引导提示（一次性，避免每句话都弹）
+        private const val KEY_MODEL_MISSING_TIP_SHOWN = "model_missing_tip_shown"
+
         // 代理设置
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
         private const val KEY_PROXY_PROTOCOL = "proxy_protocol"
@@ -86,6 +95,12 @@ class AppPrefs(context: Context) {
 
         // 模型下载源
         private const val KEY_DOWNLOAD_SOURCE = "download_source"
+
+        // 主题设置
+        private const val KEY_APP_THEME = "app_theme"
+        private const val KEY_KEYBOARD_THEME = "keyboard_theme"
+        private const val KEY_KEYBOARD_FOREGROUND_COLOR = "keyboard_foreground_color"
+        private const val KEY_KEYBOARD_BACKGROUND_COLOR = "keyboard_background_color"
 
         // LLM 纠错
         private const val KEY_LLM_CORRECTION_ENABLED = "llm_correction_enabled"
@@ -292,6 +307,15 @@ class AppPrefs(context: Context) {
         get() = sp.getBoolean(KEY_SETTINGS_IME_TIP_SHOWN, false)
         set(value) = sp.edit().putBoolean(KEY_SETTINGS_IME_TIP_SHOWN, value).apply()
 
+    /**
+     * 键盘语音"未下载模型"引导提示是否已展示（一次性）。
+     * 持久标志：IME 每次自杀重建，实例字段会在每次键盘弹出都提示；只有
+     * SharedPreferences 才能保证"整个应用只提示一次"。默认 false。
+     */
+    var modelMissingTipShown: Boolean
+        get() = sp.getBoolean(KEY_MODEL_MISSING_TIP_SHOWN, false)
+        set(value) = sp.edit().putBoolean(KEY_MODEL_MISSING_TIP_SHOWN, value).apply()
+
     // ── 词典（JSON 序列化，见 CustomDictionary） ───────────────────
 
     var dictionaryJson: String
@@ -481,6 +505,34 @@ class AppPrefs(context: Context) {
     var downloadSource: String
         get() = sp.getString(KEY_DOWNLOAD_SOURCE, DOWNLOAD_SOURCE_GITHUB)!!
         set(value) = sp.edit().putString(KEY_DOWNLOAD_SOURCE, value).apply()
+
+    // ── 主题（设置界面 + 语音键盘） ───────────────────────────────
+
+    /**
+     * 设置界面主题：跟随系统（默认）/浅色/深色。
+     * 由 SettingsActivity 的 MaterialTheme 按此值选择 light/dark 配色。
+     */
+    var appTheme: String
+        get() = sp.getString(KEY_APP_THEME, THEME_SYSTEM)!!
+        set(value) = sp.edit().putString(KEY_APP_THEME, value).apply()
+
+    /**
+     * 语音键盘主题：跟随系统/浅色（默认，保持现状外观）/深色/自定义。
+     * 键盘每次重新弹出（IME 进程重建）时读取，无需实时刷新。
+     */
+    var keyboardTheme: String
+        get() = sp.getString(KEY_KEYBOARD_THEME, THEME_LIGHT)!!
+        set(value) = sp.edit().putString(KEY_KEYBOARD_THEME, value).apply()
+
+    /** 语音键盘自定义前景色（文字/图标，ARGB int），默认深灰 #202124 */
+    var keyboardForegroundColor: Int
+        get() = sp.getInt(KEY_KEYBOARD_FOREGROUND_COLOR, 0xFF202124.toInt())
+        set(value) = sp.edit().putInt(KEY_KEYBOARD_FOREGROUND_COLOR, value).apply()
+
+    /** 语音键盘自定义背景色（ARGB int），默认白 #FFFFFF */
+    var keyboardBackgroundColor: Int
+        get() = sp.getInt(KEY_KEYBOARD_BACKGROUND_COLOR, 0xFFFFFFFF.toInt())
+        set(value) = sp.edit().putInt(KEY_KEYBOARD_BACKGROUND_COLOR, value).apply()
 
     // ── 模型列表缓存序列化（JSON 字符串数组，保持顺序） ───────────────
 
