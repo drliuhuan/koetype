@@ -1072,10 +1072,12 @@ private fun LocalSttModelSection(prefs: AppPrefs, context: Context) {
                     downloadingName = null
                     downloadError = null
                     prefs.sherpaModelPath = modelDir.absolutePath
-                    // 标点模型"绑定下载"：GitHub 整包已内含标点；HF 单文件模式下下载完
-                    // 中文 int8 后补拉标点模型（无独立下载按钮，统一随中文模型一并获取）
+                    // 标点模型"绑定下载"：GitHub 整包已内含标点；HF 单文件模式下下载器
+                    // 已随 ASR 串行补下标点（见 downloadAndInstall），此处仅当标点仍缺失时
+                    // 再补一次重试（下载器内标点失败不阻塞 ASR 成功，靠这里兜底重拉）
                     if (preset.name == SherpaModelDownloader.GITHUB_ZH_INT8_PRESET_NAME &&
-                        AppPrefs(context).downloadSource == AppPrefs.DOWNLOAD_SOURCE_HF
+                        AppPrefs(context).downloadSource == AppPrefs.DOWNLOAD_SOURCE_HF &&
+                        SherpaModelDownloader.scanPunctInstalled(context) == null
                     ) {
                         startPunctDownload()
                     }
