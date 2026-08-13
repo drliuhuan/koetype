@@ -1,0 +1,96 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace 'com.drliuhuan.sayboardpro'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.drliuhuan.koetype"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        // 只保留 arm64-v8a，去掉其他 ABI 的 onnxruntime（每份约 21MB），APK 可显著变小
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        // llama.cpp 需要 NDK r25c（AGP 8.x 在启用 native 构建时要求完整版本号）
+        ndkVersion "25.2.9519653"
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DLLAMA_BUILD_COMMON=ON",
+                        "-DLLAMA_BUILD_TESTS=OFF",
+                        "-DLLAMA_BUILD_EXAMPLES=OFF",
+                        "-DLLAMA_BUILD_SERVER=OFF",
+                        "-DGGML_LLAMAFILE=OFF",
+                        "-DGGML_OPENMP=OFF",
+                        "-DCMAKE_BUILD_TYPE=Release"
+                cppFlags "-std=c++17"
+            }
+        }
+    }
+
+    // 本地 LLM 纠错：llama.cpp 的 CMake（参考 Sayboard-2 的配置，已在本机装好 cmake 3.22.1）
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = '1.5.3'
+    }
+
+    packagingOptions {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+
+    // IME / lifecycle
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+
+    // sherpa-onnx 官方 Android AAR（v1.13.5，内置 onnxruntime 与 libsherpa-onnx-jni.so）
+    // 从 https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar 下载放入 app/libs/
+    // 官方没有 Maven 坐标（Maven Central 只有第三方 com.bihe0832.android:lib-sherpa-onnx，版本旧且非官方，不用）。
+    implementation files('libs/sherpa-onnx-1.13.5.aar')
+
+    // Jetpack Compose
+    def composeBom = platform('androidx.compose:compose-bom:2023.10.00')
+    implementation composeBom
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material:material'
+    implementation 'androidx.compose.runtime:runtime-livedata'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    // Compose integration with activities
+    implementation 'androidx.activity:activity-compose:1.8.2'
+}

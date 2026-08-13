@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">KoeType</string>
+
+    <!-- IME 状态 -->
+    <string name="ime_status_initial">就绪</string>
+    <string name="ime_status_preparing">正在准备识别引擎…</string>
+    <string name="ime_status_ready">点击或按住说话</string>
+    <string name="ime_status_listening">正在聆听，点按或松开结束</string>
+    <string name="ime_status_processing">正在转写…</string>
+    <string name="ime_status_error">出错</string>
+    <string name="ime_status_no_provider">未配置识别服务</string>
+    <string name="ime_switch_keyboard">切换输入法</string>
+    <string name="ime_open_settings">打开设置</string>
+    <string name="ime_dictionary">词典</string>
+    <string name="ime_hide_keyboard">收起键盘</string>
+    <string name="ime_language_switch">切换语言（中文/英文）</string>
+    <string name="ime_backspace">退格</string>
+    <string name="ime_space">空格</string>
+    <string name="ime_enter_newline">换行</string>
+    <string name="ime_llm_toggle">LLM 纠错开关</string>
+    <string name="ime_llm_settings">LLM 纠错设置</string>
+    <string name="toast_en_model_missing">英文模型未下载，请到设置页下载</string>
+    <string name="toast_zh_model_missing">中文模型未下载，请到设置页下载</string>
+
+    <!-- LLM 纠错状态条 -->
+    <string name="ime_correcting">正在纠错…</string>
+    <string name="ime_correction_done">纠错完成 %1$s · %2$s tok/s</string>
+    <string name="ime_correction_failed">纠错失败，已保留原文</string>
+    <string name="ime_correction_undo">↩ 撤回</string>
+    <string name="toast_undo_applied">已撤回 LLM 润色</string>
+    <string name="toast_cannot_undo">无法撤回：原文已被修改或光标已移动</string>
+
+    <!-- 错误提示 -->
+    <string name="err_mic_permission">未授予麦克风权限，请在设置中开启</string>
+    <string name="err_mic_in_use">麦克风正被其他应用占用</string>
+    <string name="err_provider_unavailable">识别服务不可用</string>
+    <string name="err_sherpa_no_model">尚未下载 Sherpa 模型，请先到设置页下载</string>
+    <string name="err_whisper_not_configured">请先在设置页填写 Whisper 接口地址和密钥</string>
+    <string name="err_network">网络请求失败：%1$s</string>
+    <string name="err_transcribe">转写失败：%1$s</string>
+
+    <!-- 设置页：识别与模型（识别服务 + 模型管理合并） -->
+    <string name="settings_title_provider">识别与模型</string>
+    <string name="settings_title_provider_choice">识别引擎</string>
+    <string name="settings_engine_hint">本地模型使用设备端 sherpa 离线识别（默认）；在线 API 走 Whisper 兼容接口，需联网。</string>
+    <string name="settings_provider_whisper">在线 API（Whisper 兼容）</string>
+    <string name="settings_provider_sherpa">本地模型（Sherpa，默认）</string>
+    <string name="settings_whisper_base_url">接口地址</string>
+    <string name="settings_whisper_api_key">API 密钥</string>
+    <string name="settings_whisper_model">模型名称</string>
+    <string name="settings_whisper_language">语言代码（可选，留空自动）</string>
+    <string name="settings_whisper_hint">在线识别走 OpenAI 兼容 /audio/transcriptions；选供应商自动填默认接口与模型，也可手动修改。</string>
+    <string name="settings_button_test">测试连接</string>
+    <string name="settings_testing">测试中…</string>
+    <string name="settings_button_fetch_models">获取模型</string>
+    <string name="settings_test_ok">连接成功，转写正常</string>
+    <string name="settings_test_fail">测试失败：%1$s</string>
+    <string name="settings_test_llm_ok">连接成功（%1$s）</string>
+    <string name="settings_test_llm_fail">连接失败：%1$s</string>
+    <string name="settings_test_stt_ok">连接成功（%1$s）</string>
+    <string name="settings_test_stt_fail">连接失败：%1$s</string>
+
+    <!-- 在线供应商预置（识别 / LLM 共用一套框架） -->
+    <string name="settings_stt_provider_title">在线语音识别</string>
+    <string name="settings_stt_provider_label">服务供应商</string>
+    <string name="settings_stt_provider_note">选择供应商自动填入默认接口与模型，均可手动修改；语音端点不确定时选“自定义 API”。</string>
+    <string name="settings_llm_provider_label">服务供应商</string>
+    <string name="settings_api_key_placeholder">已配置，输入以替换</string>
+
+    <!-- 获取模型列表 -->
+    <string name="settings_fetch_models_fail">获取模型失败：%1$s</string>
+    <string name="settings_fetch_models_empty">该服务未返回可用模型</string>
+    <string name="settings_fetch_models_saved">已获取 %1$d 个模型</string>
+    <string name="settings_fetch_models_404">该服务不支持模型列表，请手动输入</string>
+    <string name="settings_cached_models">已缓存 %1$d 个模型</string>
+    <string name="settings_cached_models_choose">选择</string>
+    <string name="settings_cached_models_title">已缓存的模型列表</string>
+    <string name="settings_stt_models_title">在线语音识别模型</string>
+    <string name="settings_llm_models_title">LLM 模型列表</string>
+
+    <!-- 本地模型管理 -->
+    <string name="settings_model_validation_ok">当前模型校验通过</string>
+    <string name="settings_model_validation_bad">当前模型文件不完整，请重新下载</string>
+
+    <string name="settings_title_sherpa">Sherpa 本地模型</string>
+    <string name="settings_sherpa_no_model">未安装任何模型，请从下方下载</string>
+    <string name="settings_sherpa_model_used">当前使用</string>
+    <string name="settings_sherpa_download">下载</string>
+    <string name="settings_sherpa_downloading">下载中…</string>
+    <string name="settings_sherpa_downloaded">下载完成</string>
+    <string name="settings_sherpa_use">使用</string>
+    <string name="settings_sherpa_custom_url">自定义模型 zip URL</string>
+    <string name="settings_download_source_title">模型下载源</string>
+    <string name="settings_download_source_hint">中文 int8 模型从 GitHub 整包下载（默认）；下载失败可切 HuggingFace 多镜像。</string>
+    <string name="settings_download_source_github">GitHub 仓库（默认）</string>
+    <string name="settings_download_source_hf">HuggingFace 多镜像</string>
+    <string name="settings_sherpa_hotwords_score">热词权重（建议 1~10）</string>
+    <string name="settings_sherpa_hotwords_hint">词库中启用的词条自动作为热词提升识别率</string>
+
+    <string name="settings_title_dict">自定义词典</string>
+    <string name="settings_dict_hint">自定义术语表：添加希望被正确识别的词汇</string>
+    <string name="settings_dict_empty">暂无词条。添加人名、地名、机构名、方言词等词汇。</string>
+    <string name="settings_dict_word">词汇</string>
+    <string name="settings_dict_pos">词性</string>
+    <string name="settings_dict_add">添加词汇</string>
+    <string name="settings_dict_delete">删除</string>
+    <string name="settings_dict_fuzzy_pinyin">模糊拼音</string>
+    <string name="settings_dict_fuzzy_pinyin_hint">开启后识别“是/四、新/星”等平翘舌、前后鼻音混淆也自动修正（可能误伤，默认关闭）</string>
+
+    <string name="settings_title_recording">录音设置</string>
+    <string name="settings_silence_timeout">静音自动结束（毫秒，0 为关闭）</string>
+    <string name="settings_silence_threshold">静音判定阈值</string>
+    <string name="settings_auto_capitalize">自动大写句首</string>
+    <string name="settings_keyboard_switch_back">收起键盘后切回上一个输入法</string>
+    <string name="settings_keyboard_switch_back_hint">收起键盘后自动切回上一个输入法（如 Gboard）</string>
+    <string name="settings_smart_enter">智能回车（跟随输入框动作）</string>
+    <string name="settings_smart_enter_hint">回车键执行输入框声明的动作（搜索/发送/换行）</string>
+    <string name="settings_keyboard_height">键盘高度</string>
+    <string name="settings_keyboard_height_low">低（30% 屏高）</string>
+    <string name="settings_keyboard_height_medium">中（40% 屏高）</string>
+    <string name="settings_keyboard_height_high">高（50% 屏高）</string>
+
+    <!-- LLM 纠错 -->
+    <string name="settings_title_llm">LLM 纠错</string>
+    <string name="settings_llm_enabled">启用说完后 LLM 纠错断句</string>
+    <string name="settings_llm_base_url">接口地址（OpenAI 兼容）</string>
+    <string name="settings_llm_api_key">API 密钥</string>
+    <string name="settings_llm_model">模型名称</string>
+    <string name="settings_llm_max_tokens">max_tokens（每次纠错最大生成数）</string>
+    <string name="settings_llm_disable_thinking">关闭思考模式</string>
+    <string name="settings_llm_disable_thinking_hint">防止思考模型把思考过程上屏；端点报错时可关闭。</string>
+    <string name="settings_llm_hint">说完一句话后自动纠错断句再上屏，支持 OpenAI 兼容端点。</string>
+    <string name="settings_llm_custom_prompt">自定义提示词</string>
+    <string name="settings_llm_custom_prompt_placeholder">例：我是骨科医生，经常输入腰椎、间盘、椎管狭窄等医学词汇</string>
+    <string name="settings_llm_custom_prompt_hint">附加到纠错提示词帮助模型理解语境（如职业、常用词）；留空不附加。</string>
+
+    <!-- LLM 纠错模式 + 本地模型 -->
+    <string name="settings_llm_mode">纠错模式</string>
+    <string name="settings_llm_mode_online">在线 API（需配置接口/密钥/模型）</string>
+    <string name="settings_llm_mode_local">本地模型（设备端离线运行）</string>
+    <string name="settings_llm_local_hint">在设备端用 llama.cpp 离线纠错，无需网络与 API 密钥。</string>
+    <string name="settings_llm_local_download">下载</string>
+    <string name="settings_llm_local_use">使用</string>
+    <string name="settings_llm_local_downloaded">已下载</string>
+    <string name="settings_llm_local_not_downloaded">未下载</string>
+    <string name="settings_llm_local_downloading">下载中</string>
+    <string name="settings_llm_local_unsupported">当前设备不支持本地模型（需 arm64-v8a）</string>
+    <string name="settings_llm_local_select_toast">本地模型未下载，请先下载模型</string>
+
+    <!-- LLM 统计 -->
+    <string name="settings_llm_stats">LLM 统计</string>
+    <string name="settings_llm_stats_prompt">累计 prompt tokens</string>
+    <string name="settings_llm_stats_completion">累计 completion tokens</string>
+    <string name="settings_llm_stats_total">累计总 tokens</string>
+    <string name="settings_llm_stats_count">纠错次数</string>
+    <string name="settings_llm_stats_latency">平均延迟</string>
+    <string name="settings_llm_stats_reset">清零统计</string>
+
+    <!-- 识别服务：服务商介绍 -->
+    <string name="settings_provider_intro_title">服务商介绍</string>
+    <string name="service_badge_supported">可接入</string>
+    <string name="service_badge_unsupported">暂不支持，规划中</string>
+
+    <string name="service_groq_name">Groq（whisper-large-v3-turbo，最快）</string>
+    <string name="service_groq_intro" formatted="false">超快推理的云端 Whisper，适合实时语音转写，免费额度大（约 1000 万 token/月）。</string>
+    <string name="service_groq_register" formatted="false">注册：https://console.groq.com 注册 → API Keys 页创建 key（key 只显示一次）</string>
+    <string name="service_groq_endpoint" formatted="false">端点：https://api.groq.com/openai/v1（Whisper 转写 /audio/transcriptions），模型 whisper-large-v3-turbo</string>
+    <string name="service_groq_note">注意：需要国外网络</string>
+
+    <string name="service_deepgram_name">Deepgram（Nova-3，专业语音）</string>
+    <string name="service_deepgram_intro" formatted="false">专业 STT 服务商，Nova-3 中文效果好，新用户约 $200 免费额度。</string>
+    <string name="service_deepgram_register" formatted="false">注册：https://console.deepgram.com 注册 → API Keys 页创建</string>
+    <string name="service_deepgram_endpoint" formatted="false">端点：Deepgram 是专有 API（/v1/listen），不是 OpenAI 兼容</string>
+    <string name="service_deepgram_note">注意：当前 Whisper 兼容接入不支持 Deepgram，标注"暂不支持，规划中"，需后续适配或走兼容网关</string>
+
+    <string name="service_siliconflow_name">硅基流动 SiliconFlow</string>
+    <string name="service_siliconflow_intro" formatted="false">国内平台，提供多种开源模型 API，有 Whisper 类语音模型，国内直连快。</string>
+    <string name="service_siliconflow_register" formatted="false">注册：https://cloud.siliconflow.cn 注册 → API 密钥页新建（建议命名含用途）→ 密钥只显示一次</string>
+    <string name="service_siliconflow_endpoint" formatted="false">端点：https://api.siliconflow.cn/v1（OpenAI 兼容），语音转写模型如 SenseVoiceSmall / whisper-large-v3</string>
+    <string name="service_siliconflow_note">免费额度：注册送额度，具体以官网为准</string>
+
+    <string name="service_glm_name">智谱 GLM-ASR</string>
+    <string name="service_glm_intro">智谱开放平台语音识别，中文优化。</string>
+    <string name="service_glm_register" formatted="false">注册：https://open.bigmodel.cn 注册 → API 密钥管理新建 key</string>
+    <string name="service_glm_endpoint" formatted="false">端点：https://open.bigmodel.cn/api/paas/v4（OpenAI 兼容风格），语音相关模型/端点以平台文档为准</string>
+    <string name="service_glm_note">注意：GLM-ASR 端点可能不是标准 /audio/transcriptions，以平台文档为准</string>
+
+    <string name="common_save">保存</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_delete">删除</string>
+    <string name="common_redownload">重新下载</string>
+
+    <!-- 代理设置 -->
+    <string name="settings_proxy_title">代理设置</string>
+    <string name="settings_proxy_enabled">启用代理</string>
+    <string name="settings_proxy_enabled_hint">开启后配置下方参数；各用途可独立选择是否走代理。</string>
+    <string name="settings_proxy_protocol">代理协议</string>
+    <string name="settings_proxy_protocol_http">HTTP</string>
+    <string name="settings_proxy_protocol_socks5">SOCKS5</string>
+    <string name="settings_proxy_protocol_socks5h">SOCKS5H（域名由代理解析）</string>
+    <string name="settings_proxy_socks5h_hint">socks5h 由代理解析域名，可避免本地 DNS 污染。</string>
+    <string name="settings_proxy_host">主机（IP 或域名）</string>
+    <string name="settings_proxy_port">端口</string>
+    <string name="settings_proxy_user">用户名（可选）</string>
+    <string name="settings_proxy_pass">密码（可选）</string>
+    <string name="settings_proxy_usage">使用范围</string>
+    <string name="settings_proxy_for_download">模型下载走代理（sherpa 模型 / 标点 / 本地 LLM）</string>
+    <string name="settings_proxy_for_stt">在线语音识别走代理（Whisper API）</string>
+    <string name="settings_proxy_for_llm">LLM 纠错走代理（在线 API）</string>
+    <string name="settings_proxy_usage_hint">三个开关相互独立，按需开启。</string>
+
+    <!-- 模型管理：删除确认 / 重新下载 / 存储占用 -->
+    <string name="confirm_delete_title">删除模型</string>
+    <string name="confirm_delete_message">确定删除 %1$s？删除后不可恢复。</string>
+    <string name="confirm_delete_used_message">确定删除 %1$s？该模型正在使用，删除后识别将提示“模型未下载”。</string>
+</resources>
