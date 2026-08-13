@@ -3,9 +3,11 @@ package com.drliuhuan.sayboardpro.ui
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +71,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.drliuhuan.sayboardpro.AppPrefs
+import com.drliuhuan.sayboardpro.BuildConfig
 import com.drliuhuan.sayboardpro.CrashLogger
 import com.drliuhuan.sayboardpro.Constants
 import com.drliuhuan.sayboardpro.R
@@ -238,6 +241,8 @@ fun SettingsScreen(
                     4 -> ProxySection(prefs)
                     5 -> LogsSection(context)
                 }
+                // 关于 KoeType：固定在所有分区下方
+                AboutSection()
             }
         }
     }
@@ -2332,4 +2337,185 @@ private object SettingsScreenSections {
     const val LLM = "llm"
     const val PROXY = "proxy"
     const val LOGS = "logs"
+}
+
+// ── 关于 KoeType（版本 / GitHub / 许可 / 致谢 / 捐赠） ────────────────
+
+private const val KOETYPE_GITHUB_URL = "https://github.com/drliuhuan/koetype"
+private const val KOETYPE_ALIPAY_URL = "https://qr.alipay.com/fkx11216aybdf4j4uvmycd3"
+private const val POLYFORM_LICENSE_URL = "https://polyformproject.org/licenses/noncommercial/1.0.0"
+
+/** 关于区块：固定在设置页底部，展示版本 / GitHub / 许可 / 致谢 / 捐赠 */
+@Composable
+private fun AboutSection() {
+    val context = LocalContext.current
+
+    // 打开外部链接（GitHub / 支付宝 / PolyForm 许可）；无浏览器或地址非法时 Toast 提示
+    fun openUrl(url: String) {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            Toast.makeText(context, "无法打开链接：$url", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    SectionCard("关于 KoeType") {
+        // 版本：从 BuildConfig 读 versionName（versionName "0.1"）
+        AboutInfoRow("版本", BuildConfig.VERSION_NAME)
+
+        // GitHub 仓库：可点击跳转浏览器
+        AboutLinkRow("GitHub 仓库", KOETYPE_GITHUB_URL, onClick = { openUrl(KOETYPE_GITHUB_URL) })
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // 许可：可折叠，展开显示 PolyForm 许可与模型版权声明
+        LicenseBlock(onOpenUrl = ::openUrl)
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // 致谢：上游开源项目与模型作者
+        ThanksBlock()
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // 捐赠：支付宝链接 + 微信收款码 + 声明
+        DonateBlock(onOpenUrl = ::openUrl)
+    }
+}
+
+/** 只读信息行（版本等）：左标签右取值 */
+@Composable
+private fun AboutInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.body2)
+    }
+}
+
+/** 可点击链接行：左侧标签，右侧主题色可点链接 */
+@Composable
+private fun AboutLinkRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, modifier = Modifier.weight(1f))
+        Text(value, color = MaterialTheme.colors.primary, style = MaterialTheme.typography.body2)
+    }
+}
+
+/** 许可信息：默认折叠，点标题展开/收起 */
+@Composable
+private fun LicenseBlock(onOpenUrl: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("许可", style = MaterialTheme.typography.subtitle2, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+            contentDescription = null
+        )
+    }
+    if (expanded) {
+        Text(
+            "本软件采用 PolyForm Noncommercial License 1.0.0：非商业用途可免费使用、复制、修改、分发；商业使用须作者书面许可。",
+            style = MaterialTheme.typography.caption
+        )
+        AboutLinkRow("许可文本", POLYFORM_LICENSE_URL, onClick = { onOpenUrl(POLYFORM_LICENSE_URL) })
+        Text(
+            "模型版权：sherpa-onnx 及识别/标点模型 Apache-2.0、llama.cpp MIT、Qwen2.5 GGUF Apache-2.0。版权归各自上游作者，保留上游声明。",
+            style = MaterialTheme.typography.caption
+        )
+    }
+}
+
+/** 致谢：上游开源项目与模型作者 */
+@Composable
+private fun ThanksBlock() {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("致谢", style = MaterialTheme.typography.subtitle2)
+        Text(
+            "sherpa-onnx（k2-fsa）· 中文识别模型（csukuangfj）· 标点模型（ranger810）",
+            style = MaterialTheme.typography.caption
+        )
+        Text(
+            "llama.cpp（ggerganov）· Qwen（阿里）· Sayboard（Elisha Azaria，产品启发）",
+            style = MaterialTheme.typography.caption
+        )
+    }
+}
+
+/** 捐赠：支付宝链接 + 微信收款码图片（点按放大）+ 声明 */
+@Composable
+private fun DonateBlock(onOpenUrl: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("捐赠", style = MaterialTheme.typography.subtitle2)
+
+        // 支付宝：可点击链接跳转
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenUrl(KOETYPE_ALIPAY_URL) }
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Buy me some tokens. ⚡ 支付宝捐赠",
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colors.primary
+            )
+            Text("跳转", color = MaterialTheme.colors.primary, style = MaterialTheme.typography.caption)
+        }
+
+        // 微信：收款码图片，点按放大查看
+        DonateWechatImage()
+
+        Text(
+            "捐赠不代表商业授权；商业使用请联系作者（GitHub Issues）。",
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.secondary
+        )
+    }
+}
+
+/** 微信收款码：宽 180dp 居中显示，点按弹放大对话框 */
+@Composable
+private fun DonateWechatImage() {
+    var showZoom by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Image(
+            painter = painterResource(R.drawable.donate_wechat),
+            contentDescription = "微信收款码",
+            modifier = Modifier
+                .width(180.dp)
+                .clickable { showZoom = true }
+        )
+    }
+    if (showZoom) {
+        AlertDialog(
+            onDismissRequest = { showZoom = false },
+            text = {
+                Image(
+                    painter = painterResource(R.drawable.donate_wechat),
+                    contentDescription = "微信收款码",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showZoom = false }) {
+                    Text("关闭")
+                }
+            }
+        )
+    }
 }
