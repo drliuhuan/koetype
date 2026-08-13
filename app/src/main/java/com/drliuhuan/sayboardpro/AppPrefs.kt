@@ -69,6 +69,9 @@ class AppPrefs(context: Context) {
         private const val KEY_SMART_ENTER = "smart_enter"
         private const val KEY_KEYBOARD_HEIGHT = "keyboard_height"
 
+        // 设置页推荐系统输入法的一次性提示（task49c：引导不强制）
+        private const val KEY_SETTINGS_IME_TIP_SHOWN = "settings_ime_tip_shown"
+
         // 代理设置
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
         private const val KEY_PROXY_PROTOCOL = "proxy_protocol"
@@ -269,6 +272,15 @@ class AppPrefs(context: Context) {
             KEYBOARD_HEIGHT_MEDIUM -> 0.40f
             else -> 0.30f
         }
+
+    /**
+     * 设置页推荐系统输入法的一次性提示是否已展示（task49c）。
+     * 持久标志：IME 每次自杀重建，实例字段会在每次键盘弹出都提示；只有
+     * SharedPreferences 才能保证"整个应用只提示一次"。默认 false。
+     */
+    var settingsImeTipShown: Boolean
+        get() = sp.getBoolean(KEY_SETTINGS_IME_TIP_SHOWN, false)
+        set(value) = sp.edit().putBoolean(KEY_SETTINGS_IME_TIP_SHOWN, value).apply()
 
     // ── 词典（JSON 序列化，见 CustomDictionary） ───────────────────
 

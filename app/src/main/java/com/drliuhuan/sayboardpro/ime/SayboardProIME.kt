@@ -8,7 +8,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
-import android.provider.Settings
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -27,6 +26,7 @@ import com.drliuhuan.sayboardpro.llm.LocalLlamaModel
 import com.drliuhuan.sayboardpro.llm.TextCorrectorFactory
 import com.drliuhuan.sayboardpro.stt.PunctProvider
 import com.drliuhuan.sayboardpro.stt.SttEngineClient
+import com.drliuhuan.sayboardpro.stt.SttEngineClient.ModelState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -62,10 +62,6 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
     // 键盘窗口是否已创建（onCreateInputView 置 true）。实例字段，新 IME 实例自动 false。
     // 用于识别"窗口未重建的焦点抢占"：窗口已显示后绑定包变化到 KoeType 自己 = 设置页词库输入框后台抢焦点
     private var inputViewCreated = false
-
-    // 设置页禁用自身输入法（用户决策 2026-08-13）：已检测到设置页焦点并发起切换。
-    // 实例字段，进程内同一 IME 实例只切一次，防 switchToPreviousInputMethod 的 restarting 回调反复触发。
-    private var settingsImeSwitchDone = false
 
     /**
      * Compose 需要宿主 LifecycleOwner（参考 Sayboard 的 IMELifecycleOwner）。
@@ -159,49 +155,31 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
 
     override fun onStartInput(editorInfo: EditorInfo?, restarting: Boolean) {
         super.onStartInput(editorInfo, restarting)
-        CrashLogger.d(TAG, "onStartInput: pkg=${editorInfo?.packageName} restarting=$restarting switchDone=$settingsImeSwitchDone inputViewCreated=$inputViewCreated boundBefore=$boundEditorPackage")
-        // ── 设置页禁用自身输入法（用户决策 2026-08-13）──
-        // 设置页输入（词条/数字/API key）不适合语音输入；且设置页 TextField 后台抢焦点
-        // 会导致幽灵提交（commit 进设置页死连接，聊天 app 不上屏）。检测到焦点是 KoeType
-        // 自己时自动让位给其他输入法，KoeType 与设置页永不绑定。
-        if (editorInfo?.packageName == "com.drliuhuan.koetype") {
-            switchAwayFromSettings()
+        CrashLogger.d(TAG, "onStartInput: pkg=${editorInfo?.packageName} restarting=$restarting inputViewCreated=$inputViewCreated boundBefore=$boundEditorPackage")
+        // ── 设置页推荐系统输入法（用户决策 2026-08-13，task49c）──
+        // 设置页允许正常使用 KoeType（IME 自杀架构已根治幽灵提交，无需强制让位）。
+        // 仅第一次在设置页触发时推荐系统输入法（引导不强制），一次性提示。
+        // 用 SharedPreferences 持久标志：IME 每次自杀重建，实例字段会在每次键盘弹出都提示；
+        // 持久标志保证整个应用只提示一次，后续版本不再提示。
+        if (editorInfo?.packageName == "com.drliuhuan.koetype" && !prefs.settingsImeTipShown) {
+            prefs.settingsImeTipShown = true
+            CrashLogger.d(TAG, "SETTINGS INPUT: first use in settings, showing recommendation tip")
+            Toast.makeText(this, "设置页建议使用系统输入法；如需语音输入可继续使用 KoeType", Toast.LENGTH_SHORT).show()
         }
         // 键盘窗口已显示时切换编辑器（如按 Home 回桌面、焦点被其他输入框抢占）系统只调
         // onStartInput 不调 onStartInputView——这里同步更新绑定包，保证 FOCUS DRIFT 检测基准最新
         val prev = boundEditorPackage
         boundEditorPackage = editorInfo?.packageName
-        // FOCUS STOLEN：键盘窗口已显示（inputViewCreated=true）时绑定包发生变化 = 焦点在后台被切换/抢占，
-        // 典型：设置页词库输入框在后台重新抢焦点（用户切回微信但键盘还显示着，提交进死连接）。
+        // FOCUS STOLEN（降级为诊断日志，task49c）：键盘窗口已显示（inputViewCreated=true）时
+        // 绑定包发生变化 = 焦点在后台被切换/抢占，典型：设置页词库输入框在后台重新抢焦点。
         // 用户主动切 app 时键盘会收起重建（onCreateInputView 再次调用、inputViewCreated 重置），
-        // 因此同一实例内包名变化基本就是后台抢占。只拦截绑定从其他包切到 KoeType 自己，正常使用不受影响。
+        // 因此同一实例内包名变化基本就是后台抢占。仅记录不打扰——用户在设置页主动使用 KoeType
+        // 属正常场景，不再强制拦截/Toast。
         if (inputViewCreated && prev != null && prev != boundEditorPackage &&
             boundEditorPackage == "com.drliuhuan.koetype"
         ) {
-            CrashLogger.w(TAG, "FOCUS STOLEN: settings input grabbed focus without window rebuild: $prev -> $boundEditorPackage")
-            Toast.makeText(this, "检测到设置页抢占输入焦点，请重新点击输入框", Toast.LENGTH_SHORT).show()
+            CrashLogger.w(TAG, "FOCUS STOLEN (info only): settings focus without window rebuild: $prev -> $boundEditorPackage")
         }
-    }
-
-    /** 设置页禁用自身输入法：切换到其他输入法并提示。返回是否执行了切换。 */
-    private fun switchAwayFromSettings(): Boolean {
-        if (settingsImeSwitchDone) return false
-        settingsImeSwitchDone = true
-        CrashLogger.w(TAG, "SETTINGS INPUT detected (pkg=koetype), switching to other IME")
-        val switched = switchToPreviousInputMethod()
-        if (!switched) {
-            val defaultIme = Settings.Secure.getString(
-                contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD
-            )
-            if (!defaultIme.isNullOrBlank() && !defaultIme.contains("com.drliuhuan.koetype")) {
-                switchInputMethod(defaultIme)
-                CrashLogger.w(TAG, "SETTINGS INPUT: switched to default IME $defaultIme")
-                return true
-            }
-            CrashLogger.w(TAG, "SETTINGS INPUT: no other IME available, keep current")
-            return false
-        }
-        return true
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
@@ -221,6 +199,15 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         // 键盘弹出时的引擎状态：定位"收起键盘再弹出后第一次长按无效"——engine.destroy 的 postValue 异步复位，
         // 新 IME 实例复用单例引擎时 state 可能仍残留旧值（LISTENING/PROCESSING 等），长按按下被吞或排队后已松手
         CrashLogger.d(TAG, "KEYBOARD SHOW: engineState=${engine.stateLD.value} inputViewCreated=$inputViewCreated bound=$boundEditorPackage")
+        // 切换输入法到 KoeType 时系统可能不主动显示键盘窗口（IME 进程刚自杀重建）：
+        // 主动请求显示，用户无需再点一次输入框
+        runCatching { requestShowSelf(0) }.onFailure { }
+        // 预加载检查：键盘弹出即确认模型进程状态，未就绪立即触发（prepare 在 bind 成功后自动执行，
+        // 这里只做状态驱动 + 日志；用户按下时若未就绪，UI 已显示"模型加载中"）
+        if (engine.modelStateLD.value != ModelState.READY) {
+            CrashLogger.d(TAG, "MODEL PRELOAD: state=${engine.modelStateLD.value}, requesting prepare")
+            engine.ensureReady()
+        }
         // 模型/服务状态总览：一行看清 provider/LLM/标点/代理/热词配置
         val llmMode = when {
             !prefs.llmCorrectionEnabled -> "off"
@@ -325,15 +312,11 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
             Toast.makeText(this, "输入焦点已切换到其他界面，请重新点击输入框后再说", Toast.LENGTH_SHORT).show()
             return
         }
-        // 提交时刻拦截（下沉兜底）：三星系统后台抢焦点可能不触发 onStartInput 直接改
-        // currentInputEditorInfo——提交前再查一次，指向 KoeType 自己就拦截并让位输入法。
+        // 提交目标为设置页（用户在设置页主动使用 KoeType 语音输入——正常场景，不拦截）。
+        // task49c：幽灵提交已根治（IME 自杀 + 每次全新绑定），设置页无需强制让位，仅留诊断日志；
+        // 若提交失败（死连接等）走下方 commitWithFallback 兜底链 + 兜底全灭 Toast（task43 保留）。
         if (nowPkg == "com.drliuhuan.koetype") {
-            CrashLogger.w(TAG, "COMMIT BLOCKED: editor is KoeType settings (bound=$boundEditorPackage), switching away")
-            switchAwayFromSettings()
-            Toast.makeText(this, "输入焦点在设置页，已切换到系统输入法", Toast.LENGTH_SHORT).show()
-            // 焦点被设置页占死：收起键盘强制用户重新点击输入框，重新发起输入会话以恢复绑定
-            runCatching { requestHideSelf(0) }.onFailure { }
-            return
+            CrashLogger.d(TAG, "COMMIT to settings (pkg=koetype), normal usage")
         }
         // 兜底日志：确认实际要上屏的文本（截断），"上屏了但不对/没上屏"可直接对账。
         // 注意：此日志在调用 onText 之前打，只代表 onFinal 到达，不代表 commitText 已执行；

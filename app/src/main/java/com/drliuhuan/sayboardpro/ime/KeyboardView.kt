@@ -48,6 +48,7 @@ import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.Constants
 import com.drliuhuan.sayboardpro.R
 import com.drliuhuan.sayboardpro.stt.SttEngineClient
+import com.drliuhuan.sayboardpro.stt.SttEngineClient.ModelState
 import com.drliuhuan.sayboardpro.stt.SttEngineClient.State
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
@@ -89,6 +90,7 @@ class KeyboardView(
         val volume by engine.volumeLD.observeAsState(0f)
         val errorMsg by engine.errorMessageLD.observeAsState("")
         val providerName by engine.providerNameLD.observeAsState("")
+        val modelState by engine.modelStateLD.observeAsState(ModelState.IDLE)
         val correction by correctionState.observeAsState(CorrectionUiState())
         val language by languageState.observeAsState(AppPrefs.LANG_ZH)
         val llmEnabled by llmEnabledState.observeAsState(false)
@@ -111,6 +113,9 @@ class KeyboardView(
             ) {
                 // ── 首行：返回箭头 / provider 名 / 右侧（LLM、字典、齿轮、退格） ──
                 TopRow(providerName, llmEnabled)
+
+                // ── 模型加载状态条（LOADING/FAILED 条件显示，READY/IDLE 不渲染） ──
+                ModelStatusBar(modelState)
 
                 // ── LLM 纠错状态条（进行中/完成/失败，IDLE 不渲染） ──
                 CorrectionStatusBar(correction)
@@ -493,6 +498,40 @@ class KeyboardView(
             State.LISTENING -> stringResource(R.string.ime_status_listening)
             State.PROCESSING -> stringResource(R.string.ime_status_processing)
             else -> stringResource(R.string.ime_status_ready)
+        }
+    }
+
+    /**
+     * 模型加载状态条（键盘顶部 24dp 细条，样式对齐 CorrectionStatusBar）：
+     * - LOADING：灰色小字 "模型加载中…"（不遮挡键盘）
+     * - FAILED：红色小字 "模型加载失败"，点按触发引擎重试（ensureReady 幂等）
+     * - READY/IDLE：不渲染
+     */
+    @Composable
+    private fun ModelStatusBar(modelState: ModelState) {
+        if (modelState == ModelState.READY || modelState == ModelState.IDLE) return
+        val failed = modelState == ModelState.FAILED
+        val tap = if (failed) Modifier.clickable { engine.ensureReady() } else Modifier
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .then(tap),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (failed) {
+                    stringResource(R.string.ime_model_failed)
+                } else {
+                    stringResource(R.string.ime_model_loading)
+                },
+                style = MaterialTheme.typography.caption.copy(fontSize = 12.sp),
+                color = if (failed) {
+                    MaterialTheme.colors.error
+                } else {
+                    MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                }
+            )
         }
     }
 

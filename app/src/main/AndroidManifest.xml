@@ -15,12 +15,14 @@
         android:theme="@style/AppTheme"
         tools:targetApi="34">
 
-        <!-- 语音输入法本体 -->
+        <!-- 语音输入法本体：独立进程 :ime。IME onDestroy 自杀（killProcess）只杀本进程，
+             设置页（主进程）与识别模型进程（:stt）不受影响，彻底解决"设置页打开语音输入闪退"。 -->
         <service
             android:name="com.drliuhuan.sayboardpro.ime.SayboardProIME"
             android:exported="true"
             android:label="@string/app_name"
-            android:permission="android.permission.BIND_INPUT_METHOD">
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:process=":ime">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>

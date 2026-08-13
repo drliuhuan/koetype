@@ -51,6 +51,9 @@ class SttEngineClient private constructor(
     val errorMessageLD = MutableLiveData<String>()
     val providerNameLD = MutableLiveData("")
 
+    /** 模型进程加载状态：IDLE(未开始)/LOADING(加载中)/READY(就绪)/FAILED(失败)，KeyboardView 观察渲染状态条 */
+    val modelStateLD = MutableLiveData(ModelState.IDLE)
+
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** provider 抽象：sherpa 走 [RemoteSherpaProvider]（AIDL 转发），whisper 走本地 WhisperApiProvider */
@@ -95,6 +98,10 @@ class SttEngineClient private constructor(
     /** 远程 prepare 轮询的失败信号：模型进程经 onError(-1, ...) 通知（模型加载失败） */
     @Volatile
     private var remotePrepareError: String? = null
+
+    /** 预加载轮询进行中：ensureReady/pollModelReady 并发调用时只开一轮，保证幂等 */
+    @Volatile
+    private var readyPolling = false
 
     val isListening: Boolean
         get() = stateLD.value == State.LISTENING
@@ -192,10 +199,12 @@ class SttEngineClient private constructor(
                 }
                 if (isReady) {
                     providerReady = true
+                    modelStateLD.value = ModelState.READY
                     startRecording()
                 } else {
                     stateLD.value = State.ERROR
                     errorMessageLD.value = err ?: "识别引擎初始化失败"
+                    modelStateLD.value = ModelState.FAILED
                     listener.onError(err ?: "初始化失败")
                 }
             }
@@ -453,11 +462,14 @@ class SttEngineClient private constructor(
                 }
                 // 预加载：bind 成功即 prepare（后台加载 recognizer，用户按麦时已就绪）
                 if (prefs.activeProvider == AppPrefs.PROVIDER_SHERPA) {
+                    modelStateLD.value = ModelState.LOADING
                     try {
                         s.prepare()
                     } catch (e: Exception) {
                         CrashLogger.e(TAG, "CLIENT: prepare failed", e)
                     }
+                    // 状态驱动：后台轮询 prepare 直到就绪/失败，键盘状态条据此显示"模型加载中"
+                    ensureReady()
                 }
             }
 
@@ -465,6 +477,8 @@ class SttEngineClient private constructor(
                 CrashLogger.w(TAG, "CLIENT: service disconnected")
                 service = null
                 providerReady = false
+                modelStateLD.value = ModelState.FAILED
+                errorMessageLD.value = "识别服务已断开"
                 handleServiceLoss()
             }
         }
@@ -474,6 +488,8 @@ class SttEngineClient private constructor(
             CrashLogger.e(TAG, "CLIENT: bindService failed", e)
             bindRequested = false
             serviceConnection = null
+            modelStateLD.value = ModelState.FAILED
+            errorMessageLD.value = "识别服务绑定失败"
             false
         }
     }
@@ -489,6 +505,46 @@ class SttEngineClient private constructor(
             }
         }
         service = null
+    }
+
+    /**
+     * 预加载驱动（幂等）：键盘弹出/绑定完成时调用，确保模型进程绑定与 prepare 流程已启动，
+     * 并把加载状态驱动到 [modelStateLD]（LOADING→READY/FAILED），键盘据此显示模型加载进度条。
+     * 已就绪（[providerReady]）时 no-op；whisper 模式无模型进程，直接返回。
+     * 注意：现有 bind 在 onCreate 发起（onServiceConnected 后自动 prepare），本方法只是兜底驱动 +
+     * 状态联动，不重复 bind/prepare（[pollModelReady] 的 prepare 轮询是既有就绪检测机制，幂等）。
+     */
+    fun ensureReady() {
+        if (prefs.activeProvider != AppPrefs.PROVIDER_SHERPA) return
+        if (providerReady) {
+            modelStateLD.value = ModelState.READY
+            return
+        }
+        // 绑定未完成则触发 bind（幂等）；bind 成功后 onServiceConnected 会自动 prepare
+        if (!bindRequested) bindService()
+        val s = service
+        if (s != null) {
+            ensureProvider()
+            pollModelReady()
+        }
+    }
+
+    /** 后台轮询模型进程 prepare 直到就绪/失败，更新 [modelStateLD]。并发调用只开一轮轮询 */
+    private fun pollModelReady() {
+        if (readyPolling) return
+        val p = provider ?: return
+        readyPolling = true
+        modelStateLD.value = ModelState.LOADING
+        p.prepare { ok, err ->
+            readyPolling = false
+            if (ok) {
+                providerReady = true
+                modelStateLD.value = ModelState.READY
+            } else {
+                modelStateLD.value = ModelState.FAILED
+                if (err != null) errorMessageLD.value = err
+            }
+        }
     }
 
     /**
@@ -657,6 +713,9 @@ class SttEngineClient private constructor(
     enum class State {
         IDLE, PREPARING, READY, LISTENING, PROCESSING, ERROR
     }
+
+    /** 模型进程加载状态：IDLE(未开始)/LOADING(加载中)/READY(就绪)/FAILED(失败) */
+    enum class ModelState { IDLE, LOADING, READY, FAILED }
 
     interface Listener {
         fun onPartial(text: String)
