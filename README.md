@@ -80,6 +80,19 @@ Qwen2.5-1.5B/0.5B Instruct GGUF 由 ModelScope 官方仓库提供，许可 Apach
 - **Hermes** — 架构方案、日志分析、编译打包与交付
 - **Claude Code** — 代码实现
 
+## 致谢
+
+KoeType 建立在众多优秀开源项目之上，向每一位原作者致以诚挚感谢：
+
+- **sherpa-onnx**（[k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)，Apache-2.0）— 端侧流式语音识别框架
+- **中文流式识别模型**（[csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30](https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30)，Apache-2.0）
+- **标点恢复模型**（[ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8](https://huggingface.co/ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8)，Apache-2.0）
+- **llama.cpp**（[ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)，MIT）— 设备端 LLM 推理引擎
+- **Qwen2.5 Instruct GGUF**（[ModelScope](https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF)，Apache-2.0）— 阿里 Qwen 团队
+- **SayboardPro / Sayboard** — KoeType 的移植基础
+
+完整致谢见 [THANKS](THANKS)。
+
 ## 许可
 
 代码与仓库内容遵循 [LICENSE](LICENSE)（KoeType License）：
@@ -87,4 +100,4 @@ Qwen2.5-1.5B/0.5B Instruct GGUF 由 ModelScope 官方仓库提供，许可 Apach
 - 完全开源，**免费使用、复制、修改与分发**
 - **商业使用须获得作者书面许可**
 
-模型文件遵循其各自上游许可（Apache-2.0，详见上方模型表格）。
+**模型文件版权归各自上游作者所有**，遵循其上游许可（Apache-2.0 / MIT，详见模型表格与 THANKS），使用与再分发须保留上游版权声明。

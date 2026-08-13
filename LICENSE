@@ -3,8 +3,12 @@ KoeType License
 
 Copyright (c) 2026 drliuhuan
 
-本许可证适用于 KoeType 仓库中的全部代码、文档与其他非模型资产
-（模型文件遵循其各自上游许可，见 README 模型表格）。
+本许可证适用于 KoeType 仓库中的全部代码、文档与其他非模型资产。
+
+**模型文件版权归各自上游作者所有**，遵循其上游开源许可
+（sherpa-onnx 及其中文识别/标点模型为 Apache-2.0，llama.cpp 为 MIT，
+Qwen2.5 GGUF 为 Apache-2.0），详见 README 模型表格与 THANKS 致谢文件。
+使用模型文件须保留上游版权声明。
 
 一、授予的权利
 --------------

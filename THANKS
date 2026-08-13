@@ -1,0 +1,20 @@
+# 致谢 / Acknowledgements
+
+KoeType 建立在众多优秀的开源项目之上，在此向每一位原作者致以诚挚感谢。
+
+## 语音识别框架与模型
+
+- **sherpa-onnx**（[k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)）— 端侧流式语音识别推理框架（Apache-2.0）。作者：csukuangfj 及 k2-fsa 社区。
+- **中文流式识别模型** — [csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30](https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30)（Apache-2.0）
+- **标点恢复模型** — [ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8](https://huggingface.co/ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8)（Apache-2.0）
+
+## 本地大语言模型
+
+- **llama.cpp**（[ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)）— 设备端 LLM 推理引擎（MIT）
+- **Qwen2.5-1.5B / 0.5B Instruct GGUF** — [ModelScope 官方仓库](https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF)（Apache-2.0），作者：阿里巴巴 Qwen 团队
+
+## 上游项目
+
+- **SayboardPro / Sayboard** — KoeType 的移植基础（键盘 UI 与录音交互设计源自该开源项目）
+
+再次感谢所有开源贡献者的工作，让本地优先的语音输入成为可能。
