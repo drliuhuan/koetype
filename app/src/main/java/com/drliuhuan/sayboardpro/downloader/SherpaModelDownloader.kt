@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.Constants
+import com.drliuhuan.sayboardpro.CrashLogger
 import com.drliuhuan.sayboardpro.net.ProxyHelper
 import java.io.BufferedInputStream
 import java.io.File
@@ -424,8 +425,9 @@ object SherpaModelDownloader {
                 for ((index, file) in preset.files.withIndex()) {
                     val target = File(targetDir, file.localName)
                     val ok = downloadWithMirrors(preset.repoId, file.remoteName, target, prefs) { frac ->
-                        // 整体进度 = 已完成文件 + 当前文件进度，按文件数均摊
-                        callback.onProgress((index + frac) / total)
+                        // 整体进度 = 已完成文件 + 当前文件进度，按文件数均摊；
+                        // 映射到 0-0.9，预留 0.9-1.0 给标点模型补下（见下方），保证进度单调
+                        callback.onProgress(0.9f * (index + frac) / total)
                     }
                     if (!ok) {
                         Constants.deleteRecursive(targetDir)
@@ -441,7 +443,40 @@ object SherpaModelDownloader {
                 }
 
                 AppPrefs(context).sherpaModelPath = targetDir.absolutePath
-                callback.onSuccess(targetDir)
+                // 标点模型：HF 单文件模式下 ASR 与标点是两个独立下载任务——
+                // GitHub 整包模式已含标点，此处必须补下，否则标点失效（punct=none）。
+                // 仅 HF 下载源补下：GitHub 源下 downloadPunctModel 会重定向到整包下载，
+                // 14M/英文预设（不在整包内）会误触发整包并覆盖刚装好的 ASR，不能在此调用。
+                if (prefs.downloadSource == AppPrefs.DOWNLOAD_SOURCE_HF) {
+                    try {
+                        val punctDir = getPunctModelDir(context)
+                        if (!validatePunctDir(punctDir)) {
+                            CrashLogger.d(TAG, "punct missing, downloading after ASR")
+                            downloadPunctModel(context, object : Callback {
+                                override fun onProgress(frac: Float) {
+                                    // 标点进度映射到 0.9-1.0 区间（ASR 已完成）
+                                    callback.onProgress(0.9f + frac * 0.1f)
+                                }
+                                override fun onSuccess(file: File) {
+                                    CrashLogger.d(TAG, "punct installed after ASR")
+                                    callback.onProgress(1f)
+                                    // 仍回传 ASR 目录：调用方会把 onSuccess 的目录写入 sherpaModelPath，
+                                    // 若传标点目录会把 ASR 路径覆盖成标点（与整包路径 onSuccess(sherpaDir) 一致）
+                                    callback.onSuccess(File(prefs.sherpaModelPath))
+                                }
+                                override fun onError(msg: String) {
+                                    // 标点失败不阻塞 ASR 可用性：已装好的 ASR 保留，仅提示标点缺失
+                                    CrashLogger.w(TAG, "punct download failed after ASR: $msg")
+                                    callback.onSuccess(File(prefs.sherpaModelPath)) // ASR 仍成功
+                                }
+                            })
+                            return@Thread
+                        }
+                    } catch (e: Exception) {
+                        CrashLogger.w(TAG, "punct check failed: ${e.message}")
+                    }
+                }
+                callback.onSuccess(File(prefs.sherpaModelPath))
             } catch (e: Exception) {
                 Log.e(TAG, "download failed", e)
                 Constants.deleteRecursive(targetDir)

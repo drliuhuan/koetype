@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- :stt 模型进程前台服务：前台保活需要 FOREGROUND_SERVICE；specialUse 类型（Android 14+）
+         只要求 FOREGROUND_SERVICE_SPECIAL_USE 权限 + manifest property 声明用途，无 eligible-state
+         前台检查（IME 场景适用，避免"非前台 :stt 进程启动 microphone FGS 被拒"）。
+         POST_NOTIFICATIONS 不请求：Android 13+ 无通知权限时 startForeground 不崩、通知不显示，服务仍前台保活。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name="com.drliuhuan.sayboardpro.SayboardProApp"
@@ -15,12 +21,14 @@
         android:theme="@style/AppTheme"
         tools:targetApi="34">
 
-        <!-- 语音输入法本体 -->
+        <!-- 语音输入法本体：独立进程 :ime。IME onDestroy 自杀（killProcess）只杀本进程，
+             设置页（主进程）与识别模型进程（:stt）不受影响，彻底解决"设置页打开语音输入闪退"。 -->
         <service
             android:name="com.drliuhuan.sayboardpro.ime.SayboardProIME"
             android:exported="true"
             android:label="@string/app_name"
-            android:permission="android.permission.BIND_INPUT_METHOD">
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:process=":ime">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>
@@ -39,6 +47,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 识别模型进程：独立进程 :stt，常驻 sherpa recognizer。
+             IME 进程每次收起/切换自杀后本服务继续存活（前台服务保活），
+             下次 IME bind 直接复用已加载模型（零加载延迟）。
+             foregroundServiceType="specialUse"：无 eligible-state 前台检查，IME 场景避免
+             "非前台进程启动 microphone FGS 被拒"；用途经 property 声明（Play 审核用）。 -->
+        <service
+            android:name="com.drliuhuan.sayboardpro.stt.SttService"
+            android:process=":stt"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="keep speech recognition model loaded across IME restarts" />
+        </service>
 
         <!-- 崩溃日志导出：把 crash_logs 目录下的文件分享出去 -->
         <provider

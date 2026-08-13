@@ -31,6 +31,10 @@
     <string name="toast_undo_applied">已撤回 LLM 润色</string>
     <string name="toast_cannot_undo">无法撤回：原文已被修改或光标已移动</string>
 
+    <!-- 模型加载状态条 -->
+    <string name="ime_model_loading">🔄 模型加载中…</string>
+    <string name="ime_model_failed">⚠ 模型加载失败（点按重试）</string>
+
     <!-- 错误提示 -->
     <string name="err_mic_permission">未授予麦克风权限，请在设置中开启</string>
     <string name="err_mic_in_use">麦克风正被其他应用占用</string>
@@ -44,6 +48,8 @@
     <string name="settings_title_provider">识别与模型</string>
     <string name="settings_title_provider_choice">识别引擎</string>
     <string name="settings_engine_hint">本地模型使用设备端 sherpa 离线识别（默认）；在线 API 走 Whisper 兼容接口，需联网。</string>
+    <string name="settings_stt_foreground_title">模型后台常驻</string>
+    <string name="settings_stt_foreground_hint">开启后模型进程保持前台（通知栏常驻，识别秒开）；关闭后无通知，模型可能被系统回收导致加载稍慢。</string>
     <string name="settings_provider_whisper">在线 API（Whisper 兼容）</string>
     <string name="settings_provider_sherpa">本地模型（Sherpa，默认）</string>
     <string name="settings_whisper_base_url">接口地址</string>

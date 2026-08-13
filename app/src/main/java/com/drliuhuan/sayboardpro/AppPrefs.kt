@@ -58,6 +58,7 @@ class AppPrefs(context: Context) {
         private const val KEY_WHISPER_LANGUAGE = "whisper_language"
         private const val KEY_SHERPA_MODEL_PATH = "sherpa_model_path"
         private const val KEY_SHERPA_HOTWORDS_SCORE = "sherpa_hotwords_score"
+        private const val KEY_STT_FOREGROUND_KEEP_ALIVE = "stt_foreground_keep_alive"
         private const val KEY_PUNCT_MODEL_PATH = "punct_model_path"
         private const val KEY_SILENCE_TIMEOUT_MS = "silence_timeout_ms"
         private const val KEY_SILENCE_THRESHOLD = "silence_threshold"
@@ -68,6 +69,9 @@ class AppPrefs(context: Context) {
         private const val KEY_KEYBOARD_LANGUAGE = "keyboard_language"
         private const val KEY_SMART_ENTER = "smart_enter"
         private const val KEY_KEYBOARD_HEIGHT = "keyboard_height"
+
+        // 设置页推荐系统输入法的一次性提示（task49c：引导不强制）
+        private const val KEY_SETTINGS_IME_TIP_SHOWN = "settings_ime_tip_shown"
 
         // 代理设置
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
@@ -220,6 +224,15 @@ class AppPrefs(context: Context) {
             .putFloat(KEY_SHERPA_HOTWORDS_SCORE, value.coerceIn(0f, MAX_HOTWORDS_SCORE))
             .apply()
 
+    /**
+     * 模型进程前台保活（通知栏常驻）：开启=模型常驻不回收（有常驻通知）；
+     * 关闭=普通服务（模型可能被系统回收，加载稍慢）。默认开启。
+     * 切换后下次模型进程启动时生效（:stt 进程读 prefs 是跨进程，常驻期间不热更新）。
+     */
+    var sttForegroundKeepAlive: Boolean
+        get() = sp.getBoolean(KEY_STT_FOREGROUND_KEEP_ALIVE, true)
+        set(value) = sp.edit().putBoolean(KEY_STT_FOREGROUND_KEEP_ALIVE, value).apply()
+
     // ── 录音设置 ────────────────────────────────────────────────────
 
     /** 静音持续多久(毫秒)后自动结束录音，0 表示不自动结束 */
@@ -269,6 +282,15 @@ class AppPrefs(context: Context) {
             KEYBOARD_HEIGHT_MEDIUM -> 0.40f
             else -> 0.30f
         }
+
+    /**
+     * 设置页推荐系统输入法的一次性提示是否已展示（task49c）。
+     * 持久标志：IME 每次自杀重建，实例字段会在每次键盘弹出都提示；只有
+     * SharedPreferences 才能保证"整个应用只提示一次"。默认 false。
+     */
+    var settingsImeTipShown: Boolean
+        get() = sp.getBoolean(KEY_SETTINGS_IME_TIP_SHOWN, false)
+        set(value) = sp.edit().putBoolean(KEY_SETTINGS_IME_TIP_SHOWN, value).apply()
 
     // ── 词典（JSON 序列化，见 CustomDictionary） ───────────────────
 
