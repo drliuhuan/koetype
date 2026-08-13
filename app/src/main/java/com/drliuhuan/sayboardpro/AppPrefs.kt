@@ -58,6 +58,7 @@ class AppPrefs(context: Context) {
         private const val KEY_WHISPER_LANGUAGE = "whisper_language"
         private const val KEY_SHERPA_MODEL_PATH = "sherpa_model_path"
         private const val KEY_SHERPA_HOTWORDS_SCORE = "sherpa_hotwords_score"
+        private const val KEY_STT_FOREGROUND_KEEP_ALIVE = "stt_foreground_keep_alive"
         private const val KEY_PUNCT_MODEL_PATH = "punct_model_path"
         private const val KEY_SILENCE_TIMEOUT_MS = "silence_timeout_ms"
         private const val KEY_SILENCE_THRESHOLD = "silence_threshold"
@@ -222,6 +223,15 @@ class AppPrefs(context: Context) {
         set(value) = sp.edit()
             .putFloat(KEY_SHERPA_HOTWORDS_SCORE, value.coerceIn(0f, MAX_HOTWORDS_SCORE))
             .apply()
+
+    /**
+     * 模型进程前台保活（通知栏常驻）：开启=模型常驻不回收（有常驻通知）；
+     * 关闭=普通服务（模型可能被系统回收，加载稍慢）。默认开启。
+     * 切换后下次模型进程启动时生效（:stt 进程读 prefs 是跨进程，常驻期间不热更新）。
+     */
+    var sttForegroundKeepAlive: Boolean
+        get() = sp.getBoolean(KEY_STT_FOREGROUND_KEEP_ALIVE, true)
+        set(value) = sp.edit().putBoolean(KEY_STT_FOREGROUND_KEEP_ALIVE, value).apply()
 
     // ── 录音设置 ────────────────────────────────────────────────────
 

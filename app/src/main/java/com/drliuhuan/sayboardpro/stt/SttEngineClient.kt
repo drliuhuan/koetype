@@ -67,6 +67,22 @@ class SttEngineClient private constructor(
     private var recorder: AudioRecorder? = null
     private var silenceSince = -1L
 
+    // ── 空结果自愈（task49e：说着说着上屏卡死修复） ──────────────────
+    /** 连续空 final 计数：音频链路异常时（录音没采到数据/IPC 静默）final 全空，连续达到阈值即重置 */
+    private var consecutiveEmptyFinals = 0
+
+    /** 本次卡死周期内已触发自愈次数：上限 [MAX_SELF_HEAL]，超过后只打日志，交给 IME 自杀兜底 */
+    private var selfHealCount = 0
+
+    // ── feedAudio 节流日志统计（IME 进程侧） ───────────────────────
+    /** 本会话已尝试 feedAudio 的块数/字节数（按会话清零，便于对照 streamId 看音频是否持续到达） */
+    private var feedAudioBlocks = 0L
+    private var feedAudioBytes = 0L
+
+    /** feedAudio 节流日志：上一次打点的块数/时间 */
+    private var feedAudioLastLogBlocks = 0L
+    private var feedAudioLastLogMs = 0L
+
     /** 标记这次录音结束时是否要请求 final 结果（避免旧录音 onStopped 误触发） */
     private var stopRequested = false
 
@@ -312,6 +328,11 @@ class SttEngineClient private constructor(
     }
 
     private fun startRecording() {
+        // 新会话：feedAudio 节流日志按会话清零，便于对照 streamId 看音频是否持续到达
+        feedAudioBlocks = 0
+        feedAudioBytes = 0
+        feedAudioLastLogBlocks = 0
+        feedAudioLastLogMs = SystemClock.elapsedRealtime()
         // sherpa 模式：先让模型进程建立本次会话（注入热词），再开麦，避免首帧音频竞态
         var remoteStarted = false
         if (provider is RemoteSherpaProvider) {
@@ -353,6 +374,16 @@ class SttEngineClient private constructor(
         } catch (e: Exception) {
             CrashLogger.e(TAG, "CLIENT: service.start failed", e)
             false
+        }
+    }
+
+    /** feedAudio 节流打点：每 [LOG_INTERVAL_MS] 或距上次打点累计 [LOG_BLOCK_INTERVAL] 块打一次，避免 AIDL 高频调用刷日志 */
+    private fun maybeLogFeedAudio(streamId: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - feedAudioLastLogMs >= LOG_INTERVAL_MS || feedAudioBlocks - feedAudioLastLogBlocks >= LOG_BLOCK_INTERVAL) {
+            CrashLogger.d(TAG, "CLIENT: feedAudio blocks=$feedAudioBlocks totalBytes=$feedAudioBytes stream=$streamId")
+            feedAudioLastLogBlocks = feedAudioBlocks
+            feedAudioLastLogMs = now
         }
     }
 
@@ -419,6 +450,19 @@ class SttEngineClient private constructor(
 
         override fun onFinal(text: String) {
             stateLD.value = if (providerReady) State.READY else State.IDLE
+            // 空结果自愈：连续空 final 说明音频链路异常（录音没采到数据/IPC 静默），重置音频链。
+            // 必须先于 executePendingPressDown（那可能立即开新会话，currentStreamId 会变，cancel 就瞄不准了）
+            if (text.isBlank()) {
+                consecutiveEmptyFinals++
+                CrashLogger.w(TAG, "CLIENT: empty final #$consecutiveEmptyFinals")
+                if (consecutiveEmptyFinals >= EMPTY_FINAL_TRIGGER && selfHealCount < MAX_SELF_HEAL) {
+                    triggerSelfHeal()
+                }
+            } else {
+                // 一次成功识别：本次卡死周期结束，清空计数与自愈额度
+                consecutiveEmptyFinals = 0
+                selfHealCount = 0
+            }
             // 收尾窗口结束、回到可识别状态：执行 PROCESSING 期间排队的按下意图（见 pressDown）
             executePendingPressDown()
             if (text.isBlank()) return
@@ -430,6 +474,30 @@ class SttEngineClient private constructor(
             errorMessageLD.value = message
             listener.onError(message)
         }
+    }
+
+    /**
+     * 空结果自愈：连续 [EMPTY_FINAL_TRIGGER] 次空 final（音频链路异常：录音或 IPC 静默失效），
+     * 释放录音器、取消模型进程当前会话，让下一次识别回到干净起点。
+     * 同一卡死周期内最多 [MAX_SELF_HEAL] 次（自愈本身也可能失败）；超限只打日志，
+     * 等用户重开键盘——IME 自杀机制会兜底重建。仅主线程调用（onFinal 回调）。
+     */
+    private fun triggerSelfHeal() {
+        consecutiveEmptyFinals = 0
+        selfHealCount++
+        CrashLogger.w(TAG, "CLIENT: SELF-HEAL empty finals x2, resetting audio chain (#$selfHealCount)")
+        // 1. 释放当前 AudioRecorder（若残留；下一次 start() 新建，mic 资源复位）
+        recorder?.release()
+        recorder = null
+        stopRequested = false
+        // 2. 通知模型进程放弃当前会话（下一次 start() 建立全新 stream）
+        try {
+            service?.cancel(currentStreamId)
+        } catch (e: Exception) {
+            CrashLogger.w(TAG, "CLIENT: SELF-HEAL cancel failed: ${e.message}")
+        }
+        // 3. 状态回到 READY（可正常再识别）
+        stateLD.value = if (providerReady) State.READY else State.IDLE
     }
 
     // ── :stt 进程 bind / prepare 管理 ────────────────────────────────
@@ -664,10 +732,14 @@ class SttEngineClient private constructor(
                 bytes[i * 2] = (v and 0xFF).toByte()
                 bytes[i * 2 + 1] = ((v shr 8) and 0xFF).toByte()
             }
+            feedAudioBlocks++
+            feedAudioBytes += length * 2L
+            maybeLogFeedAudio(currentStreamId)
             try {
                 s.feedAudio(currentStreamId, bytes)
             } catch (e: Exception) {
-                CrashLogger.w(TAG, "CLIENT: feedAudio failed: ${e.message}")
+                // IPC 断等异常不打节流：每条都记，卡死时能确认 feedAudio 是否抛错
+                CrashLogger.w(TAG, "CLIENT: feedAudio FAILED: ${e.message}")
             }
         }
 
@@ -734,6 +806,18 @@ class SttEngineClient private constructor(
 
         /** 远程 prepare 轮询间隔 */
         private const val PREPARE_POLL_MS = 200L
+
+        /** 节流日志时间间隔：5 秒（feedAudio 高频，按时间/块数双阈值打点） */
+        private const val LOG_INTERVAL_MS = 5_000L
+
+        /** 节流日志：距上次打点累计 50 块（50×0.2s=10s 音频）也打一次 */
+        private const val LOG_BLOCK_INTERVAL = 50L
+
+        /** 空结果自愈触发阈值：连续空 final 达到该值即重置音频链 */
+        private const val EMPTY_FINAL_TRIGGER = 2
+
+        /** 同一卡死周期内自愈次数上限：超过后只打日志，等 IME 自杀兜底 */
+        private const val MAX_SELF_HEAL = 2
 
         /** 无操作回调：destroy() 后、新 IME bind 前，旧 IME 的结果不再外发 */
         private val NOOP_LISTENER = object : Listener {

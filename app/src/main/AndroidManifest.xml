@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- :stt 模型进程前台服务：前台保活需要 FOREGROUND_SERVICE；microphone 类型在
+         Android 14+ 需要 FOREGROUND_SERVICE_MICROPHONE（录音识别）。POST_NOTIFICATIONS
+         不请求：Android 13+ 无通知权限时 startForeground 不崩、通知不显示，服务仍前台保活。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:name="com.drliuhuan.sayboardpro.SayboardProApp"
@@ -43,12 +48,14 @@
         </activity>
 
         <!-- 识别模型进程：独立进程 :stt，常驻 sherpa recognizer。
-             IME 进程每次收起/切换自杀后本服务继续存活（startService 保活），
-             下次 IME bind 直接复用已加载模型（零加载延迟）。 -->
+             IME 进程每次收起/切换自杀后本服务继续存活（前台服务保活），
+             下次 IME bind 直接复用已加载模型（零加载延迟）。
+             foregroundServiceType="microphone"：前台服务类型（Android 14+ 必须声明）。 -->
         <service
             android:name="com.drliuhuan.sayboardpro.stt.SttService"
             android:process=":stt"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- 崩溃日志导出：把 crash_logs 目录下的文件分享出去 -->
         <provider

@@ -336,6 +336,9 @@ private fun RecognitionSection(prefs: AppPrefs, context: Context) {
         )
     }
 
+    // 模型进程前台保活开关（task49f）：关闭后模型进程不做前台化，无通知栏常驻
+    SttForegroundKeepAliveSection(prefs)
+
     if (engine == AppPrefs.PROVIDER_SHERPA) {
         // 本地模型相关 UI 只在选择"本地模型"时启用
         LocalSttModelSection(prefs, context)
@@ -343,6 +346,37 @@ private fun RecognitionSection(prefs: AppPrefs, context: Context) {
         // 在线 API 模式：供应商预置 + 服务配置 + 测试/拉取模型
         OnlineSttSection(prefs)
         ProviderIntroSection()
+    }
+}
+
+/**
+ * 模型进程前台保活开关（task49f）：
+ * 默认开启（模型进程 startForeground，通知栏常驻，识别秒开）；
+ * 关闭后模型进程为普通服务，无常驻通知，模型可能被系统回收（下次加载稍慢）。
+ * 切换后下次模型进程启动时生效，无需重启。
+ */
+@Composable
+private fun SttForegroundKeepAliveSection(prefs: AppPrefs) {
+    var keepAlive by remember { mutableStateOf(prefs.sttForegroundKeepAlive) }
+
+    SectionCard(stringResource(R.string.settings_stt_foreground_title)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.settings_stt_foreground_title),
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = keepAlive,
+                onCheckedChange = {
+                    keepAlive = it
+                    prefs.sttForegroundKeepAlive = it
+                }
+            )
+        }
+        Text(
+            stringResource(R.string.settings_stt_foreground_hint),
+            style = MaterialTheme.typography.caption
+        )
     }
 }
 

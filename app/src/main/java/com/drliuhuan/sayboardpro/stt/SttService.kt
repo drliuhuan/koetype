@@ -1,11 +1,17 @@
 package com.drliuhuan.sayboardpro.stt
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import android.os.Process
+import android.os.SystemClock
+import androidx.core.app.NotificationCompat
 import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.CrashLogger
+import com.drliuhuan.sayboardpro.R
 
 /**
  * 识别模型进程（:stt）服务：常驻，持有 [SherpaProvider] 与已加载 recognizer。
@@ -41,12 +47,31 @@ class SttService : Service() {
     @Volatile
     private var currentStreamId = -1
 
+    // ── 音频接收节流日志统计（按会话清零） ──────────────────────────
+    /** 本会话已进入 provider 的音频块数（确认音频是否到达模型进程） */
+    private var acceptedAudioBlocks = 0L
+
+    /** 被丢弃（流无效/不匹配/服务未就绪）的音频块数 */
+    private var droppedAudioBlocks = 0L
+
+    /** acceptWaveform 节流日志：上一次打点的块数/时间 */
+    private var acceptLastLogBlocks = 0L
+    private var acceptLastLogMs = 0L
+
+    /** dropped 节流日志：上一次打点的块数/时间（丢弃若持续发生会高频触发，必须节流） */
+    private var dropLastLogBlocks = 0L
+    private var dropLastLogMs = 0L
+
     /** 加载互斥：保证同一时刻只开一个加载线程；加载状态与初始化在锁内做 */
     private val loadLock = Object()
 
     /** 加载状态机：见 [LOAD_IDLE] 等常量；prepare()/加载回调在锁内读写 */
     @Volatile
     private var loadState = LOAD_IDLE
+
+    /** 是否已进入前台服务状态：成功后置位，避免重复建渠道/重复 startForeground */
+    @Volatile
+    private var foregroundStarted = false
 
     private val binder = object : ISttService.Stub() {
         override fun prepare(): Boolean = synchronized(loadLock) {
@@ -73,6 +98,13 @@ class SttService : Service() {
                 p.cancel()
             }
             currentStreamId = streamId
+            // 新会话：音频接收节流日志统计清零，便于对照 streamId 看音频是否持续到达
+            acceptedAudioBlocks = 0
+            droppedAudioBlocks = 0
+            acceptLastLogBlocks = 0
+            dropLastLogBlocks = 0
+            acceptLastLogMs = SystemClock.elapsedRealtime()
+            dropLastLogMs = SystemClock.elapsedRealtime()
             // 注入本次会话热词：sherpa createStream 用（score 沿用 recognizer config 的
             // prefs.sherpaHotwordsScore，两进程共享同一 prefs，无需在此重建 recognizer）
             p.sessionHotwords = hotwords ?: ""
@@ -81,11 +113,42 @@ class SttService : Service() {
         }
 
         override fun feedAudio(streamId: Int, samples: ByteArray?) {
+            if (samples == null || samples.isEmpty()) return
             val p = provider
-            if (p == null || !ready || streamId != currentStreamId || samples == null) return
-            if (samples.isEmpty()) return
+            if (p == null || !ready || streamId != currentStreamId) {
+                // 音频到了但当前流无效/服务未就绪：记丢弃（节流，可能高频持续）
+                maybeLogDropped(streamId)
+                return
+            }
+            acceptedAudioBlocks++
+            maybeLogAccepted(streamId)
             val shorts = bytesToShorts(samples)
             p.acceptWaveform(shorts, shorts.size)
+        }
+
+        /** acceptWaveform 节流打点：确认音频持续到达模型进程 */
+        private fun maybeLogAccepted(streamId: Int) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - acceptLastLogMs >= LOG_INTERVAL_MS || acceptedAudioBlocks - acceptLastLogBlocks >= LOG_BLOCK_INTERVAL) {
+                CrashLogger.d(TAG, "SERVICE: acceptWaveform blocks=$acceptedAudioBlocks stream=$streamId")
+                acceptLastLogBlocks = acceptedAudioBlocks
+                acceptLastLogMs = now
+            }
+        }
+
+        /** 音频被丢弃（流不匹配/服务未就绪）的节流 W 打点 */
+        private fun maybeLogDropped(streamId: Int) {
+            droppedAudioBlocks++
+            val now = SystemClock.elapsedRealtime()
+            if (now - dropLastLogMs >= LOG_INTERVAL_MS || droppedAudioBlocks - dropLastLogBlocks >= LOG_BLOCK_INTERVAL) {
+                CrashLogger.w(
+                    TAG,
+                    "SERVICE: acceptWaveform dropped (no active stream) dropped=$droppedAudioBlocks " +
+                        "stream=$streamId current=$currentStreamId ready=$ready"
+                )
+                dropLastLogBlocks = droppedAudioBlocks
+                dropLastLogMs = now
+            }
         }
 
         override fun stop(streamId: Int) {
@@ -137,15 +200,63 @@ class SttService : Service() {
     override fun onCreate() {
         super.onCreate()
         CrashLogger.d(TAG, "SERVICE: onCreate pid=${Process.myPid()}")
+        // 前台化：服务实例创建即进入前台保活，模型进程在 IME 死后不会被系统 1-2s 回收
+        startForegroundIfNeeded()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         CrashLogger.d(TAG, "SERVICE: onStartCommand")
+        // 前台化（幂等）：startService 路径也走一遍，覆盖 onCreate 时受限失败、
+        // 之后 IME 重新 startService 时再试的场景
+        startForegroundIfNeeded()
         // 常驻：不 stopSelf；被系统回收后不自动重启（下次 bind 重新创建、模型重新加载）
         return Service.START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
+
+    // ── 前台服务 ────────────────────────────────────────────────────
+
+    /**
+     * 进入前台服务状态（通知栏常驻），使 :stt 进程获得前台优先级，系统不随 IME 死后回收。
+     * 幂等：成功后 [foregroundStarted] 置位，后续调用直接返回。
+     * 设置项 [AppPrefs.sttForegroundKeepAlive] 关闭时直接跳过（普通服务，无常驻通知）。
+     * 降级：后台启动受限（API 26+ / Android 14+ 类型限制等）抛异常时降级为普通服务，
+     * 识别功能不受影响，只是模型进程可能被系统回收（下次 bind 重新加载）。
+     */
+    private fun startForegroundIfNeeded() {
+        if (foregroundStarted) return
+        // 前台保活是设置项（task49f）：用户关闭时完全不走前台化路径，普通 bind/start 服务行为。
+        // :stt 进程读 prefs 是跨进程，开关变更后模型进程下次启动时读取新值（常驻期间不热更新）。
+        if (!AppPrefs(this).sttForegroundKeepAlive) {
+            CrashLogger.d(TAG, "SERVICE: foreground keep-alive disabled by user, running as normal service")
+            return
+        }
+        try {
+            val channelId = "stt_service"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    channelId, "语音识别服务", NotificationManager.IMPORTANCE_LOW
+                )
+                channel.description = "KoeType 语音识别模型常驻服务（保持模型已加载）"
+                getSystemService(NotificationManager::class.java)
+                    .createNotificationChannel(channel)
+            }
+            val notification = NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle("KoeType 语音识别")
+                .setContentText("模型服务运行中")
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+            startForeground(1, notification)
+            foregroundStarted = true
+            CrashLogger.d(TAG, "SERVICE: foreground started")
+        } catch (e: Exception) {
+            // 前台服务启动受限（后台启动限制等）：降级为普通服务，功能不受影响（模型可能被回收）
+            CrashLogger.w(TAG, "SERVICE: startForeground failed: ${e.message}")
+        }
+    }
 
     override fun onDestroy() {
         CrashLogger.d(TAG, "SERVICE: onDestroy")
@@ -270,6 +381,12 @@ class SttService : Service() {
         private const val LOAD_LOADING = 1
         private const val LOAD_READY = 2
         private const val LOAD_FAILED = 3
+
+        /** 节流日志时间间隔：5 秒（feedAudio 高频，按时间/块数双阈值打点） */
+        private const val LOG_INTERVAL_MS = 5_000L
+
+        /** 节流日志：距上次打点累计 50 块（50×0.2s=10s 音频）也打一次 */
+        private const val LOG_BLOCK_INTERVAL = 50L
 
         /** 把 AIDL 传来的 little-endian 字节视图转回 short[]（16kHz 16bit PCM） */
         private fun bytesToShorts(bytes: ByteArray): ShortArray {

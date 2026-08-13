@@ -5,8 +5,9 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import android.os.SystemClock
 import com.drliuhuan.sayboardpro.Constants
+import com.drliuhuan.sayboardpro.CrashLogger
 import java.io.IOException
 
 /**
@@ -26,6 +27,17 @@ class AudioRecorder(private val listener: Listener) {
     @Volatile
     private var running = false
 
+    // ── 调试统计（仅供录音线程读写，无需加锁） ──────────────────────
+    /** 本次 start() 以来累计读到的数据块数（一块 = 0.2s PCM） */
+    private var readBlocks = 0L
+
+    /** 累计读到的字节数（short 数 × 2） */
+    private var readBytes = 0L
+
+    /** 节流日志：上一次打点的块数/时间（onData 高频回调，不能每条都打） */
+    private var lastLogBlocks = 0L
+    private var lastLogMs = 0L
+
     private val bufferSize: Int
         get() {
             val min = AudioRecord.getMinBufferSize(
@@ -42,7 +54,10 @@ class AudioRecorder(private val listener: Listener) {
 
     /** 开始录音，返回是否成功 */
     fun start(): Boolean {
-        if (running) return false
+        if (running) {
+            CrashLogger.w(TAG, "AUDIO: recorder start FAILED (already running)")
+            return false
+        }
         val rec = try {
             AudioRecord.Builder()
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
@@ -56,18 +71,24 @@ class AudioRecorder(private val listener: Listener) {
                 .setBufferSizeInBytes(bufferSize * 2)
                 .build()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to init AudioRecord", e)
+            CrashLogger.e(TAG, "AUDIO: recorder start FAILED (init: ${e.message})", e)
             return false
         }
 
         if (rec.state != AudioRecord.STATE_INITIALIZED) {
             rec.release()
+            CrashLogger.w(TAG, "AUDIO: recorder start FAILED (state=${rec.state})")
             return false
         }
 
         recorder = rec
         running = true
+        readBlocks = 0
+        readBytes = 0
+        lastLogBlocks = 0
+        lastLogMs = SystemClock.elapsedRealtime()
         thread = Thread { recordLoop(rec) }.also { it.start() }
+        CrashLogger.d(TAG, "AUDIO: recorder start ok (bufferSize=$bufferSize)")
         return true
     }
 
@@ -75,6 +96,7 @@ class AudioRecorder(private val listener: Listener) {
         try {
             rec.startRecording()
             if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                CrashLogger.w(TAG, "AUDIO: recorder start FAILED (recordingState=${rec.recordingState})")
                 mainHandler.post { listener.onError(IOException("Failed to start recording. Microphone might be already in use.")) }
                 running = false
                 return
@@ -83,15 +105,20 @@ class AudioRecorder(private val listener: Listener) {
             while (running && !Thread.currentThread().isInterrupted) {
                 val nread = rec.read(buffer, 0, buffer.size)
                 if (nread < 0) {
+                    CrashLogger.w(TAG, "AUDIO: recorder read error code=$nread")
                     mainHandler.post { listener.onError(IOException("error reading audio buffer")) }
                     break
                 }
                 if (nread > 0) {
+                    readBlocks++
+                    readBytes += nread * 2L
                     listener.onData(buffer, nread)
                     listener.onVolume(computeRms(buffer, nread))
+                    maybeLogProgress()
                 }
             }
         } catch (e: Exception) {
+            CrashLogger.e(TAG, "AUDIO: recorder loop failed", e)
             mainHandler.post { listener.onError(e) }
         } finally {
             // 可能已被 release() 抢先释放，全部防御式处理
@@ -106,8 +133,19 @@ class AudioRecorder(private val listener: Listener) {
                 // already released
             }
             running = false
+            CrashLogger.d(TAG, "AUDIO: recorder stopped (blocks=$readBlocks totalBytes=$readBytes)")
             // 通知上层录音线程已完全结束（此时才可以安全地读取 final 结果）
             mainHandler.post { listener.onStopped() }
+        }
+    }
+
+    /** onData 节流打点：每 [LOG_INTERVAL_MS] 或距上次打点累计 [LOG_BLOCK_INTERVAL] 块打一次，避免高频回调刷爆日志 */
+    private fun maybeLogProgress() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastLogMs >= LOG_INTERVAL_MS || readBlocks - lastLogBlocks >= LOG_BLOCK_INTERVAL) {
+            CrashLogger.d(TAG, "AUDIO: onData blocks=$readBlocks totalBytes=$readBytes")
+            lastLogBlocks = readBlocks
+            lastLogMs = now
         }
     }
 
@@ -130,6 +168,7 @@ class AudioRecorder(private val listener: Listener) {
             it.release()
         }
         recorder = null
+        CrashLogger.d(TAG, "AUDIO: recorder released (blocks=$readBlocks)")
     }
 
     private fun computeRms(samples: ShortArray, length: Int): Float {
@@ -157,5 +196,11 @@ class AudioRecorder(private val listener: Listener) {
 
     companion object {
         private const val TAG = "AudioRecorder"
+
+        /** onData 节流日志间隔：5 秒 */
+        private const val LOG_INTERVAL_MS = 5_000L
+
+        /** onData 节流日志：距上次打点累计 50 块（50×0.2s=10s 音频）也打一次 */
+        private const val LOG_BLOCK_INTERVAL = 50L
     }
 }
