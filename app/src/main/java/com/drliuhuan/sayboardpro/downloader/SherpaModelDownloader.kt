@@ -9,6 +9,7 @@ import com.drliuhuan.sayboardpro.net.ProxyHelper
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 /**
  * sherpa-onnx 模型下载器。
@@ -198,6 +199,9 @@ object SherpaModelDownloader {
     /** GitHub 整包 zip 预期字节数（Content-Length 硬校验，247,089,282 B） */
     const val GITHUB_MODELS_ZIP_EXPECTED_BYTES: Long = 247_089_282L
 
+    /** GitHub 整包 zip 的 SHA-256（下载完成后硬校验，防篡改/损坏） */
+    const val GITHUB_MODELS_ZIP_SHA256 = "3847fdcf3b1245fa8080045dd16c6ac50fd25985399167cef9461bbcf1f048bc"
+
     /** 整包里含的中文 int8 预设目录名（即 [PRESETS] 中第一条的 name） */
     const val GITHUB_ZH_INT8_PRESET_NAME = "sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30"
 
@@ -348,6 +352,14 @@ object SherpaModelDownloader {
                 )
                 if (!ok) {
                     callback.onError("网络或代理异常导致下载失败（GitHub 仓库 zip），请重试")
+                    return@Thread
+                }
+
+                // SHA-256 硬校验：字节数一致还不够，用已知哈希锚定包内容，防篡改/损坏。
+                // 不匹配时删除临时文件并失败返回（tempFile 也会被 finally 兜底清理）。
+                if (!verifySha256(tempFile, GITHUB_MODELS_ZIP_SHA256)) {
+                    tempFile.delete()
+                    callback.onError("模型包完整性校验失败（SHA-256 不匹配），请重新下载")
                     return@Thread
                 }
 
@@ -661,6 +673,31 @@ object SherpaModelDownloader {
                 conn.disconnect()
             }
         }
+
+    /** 计算文件 SHA-256 并与期望十六进制串比对（忽略大小写）；文件缺失/IO 异常/不匹配均返回 false。 */
+    private fun verifySha256(file: File, expectedHex: String): Boolean {
+        if (expectedHex.isBlank() || !file.exists()) return false
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                var n: Int
+                while (input.read(buffer).also { n = it } >= 0) {
+                    digest.update(buffer, 0, n)
+                }
+            }
+            val actualHex = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+            if (!actualHex.equals(expectedHex, ignoreCase = true)) {
+                Log.w(TAG, "SHA-256 mismatch for ${file.name}: got $actualHex, expected $expectedHex")
+                false
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "SHA-256 verification failed for ${file.name}: ${e.message}")
+            false
+        }
+    }
 
     /** 校验已下载文件，失败返回 false（调用方负责删除残留）。错误统一归因网络/代理。 */
     private fun validateDownloaded(

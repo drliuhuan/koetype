@@ -183,7 +183,7 @@ private suspend fun chatCompletion(
                     val errorBody = connection.errorStream
                         ?.bufferedReader(Charsets.UTF_8)?.readText().orEmpty()
                     CrashLogger.w(TAG, "LLM-NET: HTTP $responseCode durationMs=$ms")
-                    CrashLogger.w(TAG, "LLM request failed with HTTP $responseCode: ${errorBody.take(300)}")
+                    CrashLogger.w(TAG, "LLM request failed with HTTP $responseCode errorBodyLen=${errorBody.length}")
                     return@withContext null
                 }
                 CrashLogger.d(TAG, "LLM-NET: HTTP $responseCode durationMs=$ms")

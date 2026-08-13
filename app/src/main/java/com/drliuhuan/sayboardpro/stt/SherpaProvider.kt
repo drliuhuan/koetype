@@ -531,9 +531,10 @@ class SherpaProvider(
         // 是否启用热词，避免"有分值无热词"的组合。
         val hotwords = buildHotwords()
         val hotwordsScore = if (hotwords.isBlank()) 0f else prefs.sherpaHotwordsScore
+        // 只记词条数与 score，不落全量词库明文（脱敏）
         CrashLogger.d(
             TAG,
-            "SHERPA: hotwords='${if (hotwords.isBlank()) "(none)" else hotwords}' score=$hotwordsScore"
+            "SHERPA: hotwordsCount=${if (hotwords.isBlank()) 0 else hotwords.split('\n').size} score=$hotwordsScore"
         )
 
         val recognizerConfig = OnlineRecognizerConfig(

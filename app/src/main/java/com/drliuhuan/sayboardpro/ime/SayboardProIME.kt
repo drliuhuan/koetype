@@ -281,8 +281,8 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
     // ── SttEngineClient.Listener：识别结果上屏 ───────────────────────
 
     override fun onPartial(text: String) {
-        // 流式预览节点留痕（截断 20 字符）：排查"有识别但不上屏/预览卡住"
-        CrashLogger.d(TAG, "PARTIAL: ${text.take(20)}")
+        // 流式预览节点留痕（只记长度，脱敏）：排查"有识别但不上屏/预览卡住"
+        CrashLogger.d(TAG, "PARTIAL len=${text.length}")
         textManager.onText(text, TextManager.Mode.PARTIAL)
     }
 
@@ -294,6 +294,19 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         // Whisper 在线接口自带标点，不再重复加。
         // 硬约束：标点模型不可用（未下载/加载失败/返回空串/抛异常/超时）时降级为原始识别文本，
         // 保证 final 结果一定上屏，绝不让标点链路把识别结果吞掉。
+        //
+        // 【为何不把 punctuate 移到后台线程再回主线程上屏】（task：标点主线程阻塞评估）：
+        // 1) 上屏顺序绝不能被破坏。onFinal 经 SttEngineClient 的 mainHandler.post 串行落到主线程，
+        //    每句"加标点→焦点漂移检测→commitText"在同一主线程调用栈内原子完成，下一句 onFinal
+        //    才进来，多句 final 的上屏顺序天然保证。
+        // 2) commitText/currentInputConnection/currentInputEditorInfo（焦点漂移检测基准）都必须在
+        //    主线程读写；若改为"后台加标点→回调主线程上屏"，需要额外引入单线程队列 + 主线程回调，
+        //    且会改变焦点漂移检测时机、纠错 capturedId 时序与幽灵提交兜底链，极易引入"后句先上屏"
+        //    或幽灵提交回归。
+        // 3) punctuate 的 native 计算本身已在 PunctProvider 内部单线程池执行，这里主线程只是有界等待
+        //    （future.get ≤ 2500ms，仅标点模型已加载时才等待；未加载/超时/异常立即降级原文），
+        //    正常标点毫秒级返回，2500ms 仅为超时兜底，实际 ANR 风险很低。
+        // 权衡后保持主线程同步等待（有界），以"上屏顺序正确性"优先。
         val toCommit = if (prefs.activeProvider == AppPrefs.PROVIDER_SHERPA) {
             runCatching { punctProvider.punctuate(text) }
                 .getOrNull()
@@ -322,7 +335,7 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         // 兜底日志：确认实际要上屏的文本（截断），"上屏了但不对/没上屏"可直接对账。
         // 注意：此日志在调用 onText 之前打，只代表 onFinal 到达，不代表 commitText 已执行；
         // 是否真正上屏以 TextManager 内的 commitText 返回值/兜底链日志为准。
-        CrashLogger.d(TAG, "commit->onText(pkg=${currentInputEditorInfo?.packageName}): ${toCommit.take(20)}")
+        CrashLogger.d(TAG, "commit->onText(pkg=${currentInputEditorInfo?.packageName}) len=${toCommit.length}")
         val committed = textManager.onText(toCommit, TextManager.Mode.FINAL)
         startCorrection(committed)
     }
@@ -397,7 +410,7 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
 
             // 期间用户又提交了新内容：本次纠错已过期，丢弃（不展示"完成"）
             if (capturedId != textManager.pendingCommitId) {
-                CrashLogger.d(TAG, "Stale LLM correction, skipping: ${result.text}")
+                CrashLogger.d(TAG, "Stale LLM correction, skipping len=${result.text.length}")
                 correctionStateLD.value = CorrectionUiState()
                 return@launch
             }
@@ -409,9 +422,9 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
             )
 
             if (textManager.applyCorrection(result.text.trim(), capturedId)) {
-                CrashLogger.d(TAG, "Applied LLM correction: ${result.text}")
+                CrashLogger.d(TAG, "Applied LLM correction len=${result.text.length}")
             } else {
-                CrashLogger.d(TAG, "LLM correction not applied in place: ${result.text}")
+                CrashLogger.d(TAG, "LLM correction not applied in place len=${result.text.length}")
             }
         }
     }

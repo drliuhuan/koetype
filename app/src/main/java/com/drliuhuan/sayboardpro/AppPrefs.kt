@@ -150,7 +150,7 @@ class AppPrefs(context: Context) {
                 val display = when {
                     key.contains("api_key") || key.contains("token") || key.contains("pass") ||
                         key.contains("secret") -> "***"
-                    key == "dictionary_json" -> (value as? String)?.take(200) ?: "null"
+                    key == "dictionary_json" -> (value as? String)?.let { "len=${it.length}" } ?: "null"
                     else -> value?.toString()?.take(100) ?: "null"
                 }
                 CrashLogger.d("PREF", "change: $key=$display")
