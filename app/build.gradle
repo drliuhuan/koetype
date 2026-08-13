@@ -11,9 +11,9 @@ android {
         targetSdk 34
         versionCode 1
         versionName "0.1"
-        // 只保留 arm64-v8a，去掉其他 ABI 的 onnxruntime（每份约 21MB），APK 可显著变小
+        // 多架构支持：arm64-v8a(主流手机) / armeabi-v7a(32位老设备) / x86_64(模拟器)
         ndk {
-            abiFilters 'arm64-v8a'
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }
         // llama.cpp 需要 NDK r25c（AGP 8.x 在启用 native 构建时要求完整版本号）
         ndkVersion "25.2.9519653"
@@ -44,6 +44,16 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // 按 ABI 拆分 APK：每个架构独立安装包（armeabi-v7a 兼容 32 位老设备，x86_64 用于模拟器）
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            universalApk true
         }
     }
 
