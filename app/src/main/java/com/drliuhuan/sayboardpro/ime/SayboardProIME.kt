@@ -447,10 +447,11 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
             engine.pressUp()
         }
 
-        // 收起键盘（等价于宿主应用 hideSoftInputFromWindow），并切回上一个输入法
+        // 收起键盘（IME 标准方式 requestHideSelf），并切回上一个输入法
         override fun hideKeyboardClick() {
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.hideSoftInputFromWindow(window?.window?.decorView?.windowToken, 0)
+            CrashLogger.d(TAG, "KEYBOARD back arrow: hide + switch back to previous IME")
+            // IME 收起自身的标准 API（hideSoftInputFromWindow 在部分 ROM 上对 IME 自身无效）
+            requestHideSelf(0)
             // 收起后切回上一个输入法（如 Gboard），下次点击输入框弹出上一个输入法。
             // 若当前就是默认输入法或没有上一个输入法，switchToPreviousInputMethod 返回 false，忽略即可。
             if (prefs.keyboardSwitchBack) {
