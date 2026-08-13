@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -302,6 +304,30 @@ private fun SetupNoticeCard(
     }
 }
 
+/** 在线服务隐私警示条：在线模式会把音频/文本发往第三方服务器 */
+@Composable
+private fun PrivacyWarningBar(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFFFEBEE), shape = RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = "隐私提示",
+            tint = Color(0xFFC62828)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.body2,
+            color = Color(0xFFC62828)
+        )
+    }
+}
+
 // ── 分区 0：识别与模型（识别服务 + 模型管理合并） ────────────────────
 
 /**
@@ -415,6 +441,7 @@ private fun OnlineSttSection(prefs: AppPrefs) {
     }
 
     SectionCard(stringResource(R.string.settings_stt_provider_title)) {
+        PrivacyWarningBar(stringResource(R.string.settings_privacy_warning_stt))
         ProviderPicker(
             label = stringResource(R.string.settings_stt_provider_label),
             providers = ServiceCatalog.sttProviders,
@@ -1782,6 +1809,12 @@ private fun LlmSection(prefs: AppPrefs) {
                 Text(stringResource(R.string.settings_llm_mode_local))
             }
 
+            Text(
+                stringResource(R.string.settings_privacy_mode_hint),
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.secondary
+            )
+
             Divider(modifier = Modifier.padding(vertical = 8.dp))
 
             // ── 自定义提示词（本地/在线纠错共用，附加到 system prompt 末尾） ──
@@ -1794,6 +1827,7 @@ private fun LlmSection(prefs: AppPrefs) {
                 LocalModelSection(prefs, context)
             } else {
                 // ── 在线模式：供应商预置 + 配置 + 测试/拉取模型 ──
+                PrivacyWarningBar(stringResource(R.string.settings_privacy_warning_llm))
                 val llmSelected = ServiceCatalog.llmProviderById(llmProviderId)
                 ProviderPicker(
                     label = stringResource(R.string.settings_llm_provider_label),

@@ -154,6 +154,11 @@
     <string name="settings_llm_local_unsupported">当前设备不支持本地模型（需 arm64-v8a）</string>
     <string name="settings_llm_local_select_toast">本地模型未下载，请先下载模型</string>
 
+    <!-- 在线服务隐私警示（患者/病历等敏感信息不入在线服务） -->
+    <string name="settings_privacy_warning_stt">隐私提示：启用在线识别时，语音内容将发送至第三方服务器。请勿在在线服务激活时录入敏感信息（患者信息、病历、密码等）。</string>
+    <string name="settings_privacy_warning_llm">隐私提示：启用在线 LLM 纠错时，识别文本将发送至第三方大模型服务商。请勿在在线服务激活时录入敏感信息（患者信息、病历、密码等）。本地模型模式下数据不出设备。</string>
+    <string name="settings_privacy_mode_hint">在线模式数据发送至第三方服务商</string>
+
     <!-- LLM 统计 -->
     <string name="settings_llm_stats">LLM 统计</string>
     <string name="settings_llm_stats_prompt">累计 prompt tokens</string>
