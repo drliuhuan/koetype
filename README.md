@@ -89,7 +89,7 @@ KoeType 建立在众多优秀开源项目之上，向每一位原作者致以诚
 - **标点恢复模型**（[ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8](https://huggingface.co/ranger810/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8)，Apache-2.0）
 - **llama.cpp**（[ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)，MIT）— 设备端 LLM 推理引擎
 - **Qwen2.5 Instruct GGUF**（[ModelScope](https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF)，Apache-2.0）— 阿里 Qwen 团队
-- **SayboardPro / Sayboard** — KoeType 的移植基础
+- **Sayboard**（[ElishaAz/Sayboard](https://github.com/ElishaAz/Sayboard)，GPL-3.0，作者 Elisha Azaria）— KoeType 的移植基础
 
 完整致谢见 [THANKS](THANKS)。
 

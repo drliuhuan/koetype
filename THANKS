@@ -15,6 +15,6 @@ KoeType 建立在众多优秀的开源项目之上，在此向每一位原作者
 
 ## 上游项目
 
-- **SayboardPro / Sayboard** — KoeType 的移植基础（键盘 UI 与录音交互设计源自该开源项目）
+- **Sayboard**（[ElishaAz/Sayboard](https://github.com/ElishaAz/Sayboard)，GPL-3.0，作者 Elisha Azaria）— KoeType 的移植基础（键盘 UI 与录音交互设计源自该项目）。向原作者致以诚挚感谢。
 
 再次感谢所有开源贡献者的工作，让本地优先的语音输入成为可能。
