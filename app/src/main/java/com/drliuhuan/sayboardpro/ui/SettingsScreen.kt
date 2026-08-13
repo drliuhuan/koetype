@@ -101,7 +101,7 @@ import java.io.OutputStreamWriter
 import java.util.Locale
 
 /**
- * 设置页主界面：六个分区（识别与模型 / 词典 / 录音 / LLM 纠错 / 代理 / 日志）。
+ * 设置页主界面：七个分区（识别与模型 / 词典 / 录音 / LLM 纠错 / 代理 / 日志 / 关于）。
  * "识别服务"与"Sherpa 模型"已合并为"识别与模型"：顶部识别引擎选择（本地模型/在线 API），
  * 本地模型 UI 只在选"本地模型"时启用，在线 API 模式显示供应商预置与配置。
  * 分区较多、顶部 Tab 在窄屏放不下，改为左侧抽屉（ModalDrawer）导航：点击顶部 ≡ 打开抽屉，
@@ -131,7 +131,7 @@ fun SettingsScreen(
     // 词性记忆：记住上一次添加词汇用的词性，进程内有效（进程重启=刚打开=默认"名词"）
     var lastAddedPos by remember { mutableStateOf(PartOfSpeech.NOUN) }
     // 识别服务与模型管理已合并为"识别与模型"分区（本地模型 / 在线 API 二选一）
-    val tabs = listOf("识别与模型", "词典", "录音", "LLM 纠错", "代理", "日志")
+    val tabs = listOf("识别与模型", "词典", "录音", "LLM 纠错", "代理", "日志", "关于")
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -242,9 +242,8 @@ fun SettingsScreen(
                     3 -> LlmSection(prefs)
                     4 -> ProxySection(prefs)
                     5 -> LogsSection(context)
+                    6 -> AboutSection()
                 }
-                // 关于 KoeType：固定在所有分区下方
-                AboutSection()
             }
         }
     }
@@ -2379,7 +2378,7 @@ private const val KOETYPE_GITHUB_URL = "https://github.com/drliuhuan/koetype"
 private const val KOETYPE_ALIPAY_URL = "https://qr.alipay.com/fkx11216aybdf4j4uvmycd3"
 private const val POLYFORM_LICENSE_URL = "https://polyformproject.org/licenses/noncommercial/1.0.0"
 
-/** 关于区块：固定在设置页底部，展示版本 / GitHub / 许可 / 致谢 / 捐赠 */
+/** 关于区块：设置页独立分区（抽屉第 7 项），展示版本 / GitHub / 许可 / 致谢 / 捐赠 */
 @Composable
 private fun AboutSection() {
     val context = LocalContext.current
