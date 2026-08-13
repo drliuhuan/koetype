@@ -62,3 +62,9 @@ Qwen2.5-1.5B/0.5B Instruct GGUF 由 ModelScope 官方仓库提供，许可 Apach
 
 - sherpa 中文识别模型：`https://raw.githubusercontent.com/drliuhuan/koetype/main/models/sherpa-zh-int8/...`
 - 标点模型：`https://raw.githubusercontent.com/drliuhuan/koetype/main/models/punct/...`
+
+## 贡献者
+
+- **drliuhuan** — 产品设计、医学场景需求、测试验证
+- **Hermes** — 架构方案、日志分析、编译打包与交付
+- **Claude Code** — 代码实现
