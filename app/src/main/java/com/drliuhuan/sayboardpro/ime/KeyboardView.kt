@@ -47,8 +47,8 @@ import androidx.lifecycle.MutableLiveData
 import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.Constants
 import com.drliuhuan.sayboardpro.R
-import com.drliuhuan.sayboardpro.stt.SttEngine
-import com.drliuhuan.sayboardpro.stt.SttEngine.State
+import com.drliuhuan.sayboardpro.stt.SttEngineClient
+import com.drliuhuan.sayboardpro.stt.SttEngineClient.State
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
@@ -69,7 +69,7 @@ import java.util.Locale
 @SuppressLint("ViewConstructor")
 class KeyboardView(
     private val ime: Context,
-    private val engine: SttEngine,
+    private val engine: SttEngineClient,
     private val correctionState: MutableLiveData<CorrectionUiState>,
     private val languageState: MutableLiveData<String>,
     private val llmEnabledState: MutableLiveData<Boolean>,

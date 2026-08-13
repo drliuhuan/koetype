@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.View
@@ -25,7 +26,7 @@ import com.drliuhuan.sayboardpro.downloader.SherpaModelDownloader
 import com.drliuhuan.sayboardpro.llm.LocalLlamaModel
 import com.drliuhuan.sayboardpro.llm.TextCorrectorFactory
 import com.drliuhuan.sayboardpro.stt.PunctProvider
-import com.drliuhuan.sayboardpro.stt.SttEngine
+import com.drliuhuan.sayboardpro.stt.SttEngineClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,14 +41,15 @@ import kotlinx.coroutines.withContext
  * 语音输入法主类（InputMethodService）。
  * 架构参考 Sayboard 的 IME.kt：
  * - onCreateInputView 返回 [KeyboardView]（Compose）
- * - [SttEngine] 负责识别编排，结果经 [TextManager] 上屏
+ * - [SttEngineClient]（IME 侧适配层，识别引擎在 :stt 独立进程常驻）负责识别编排，
+ *   结果经 [TextManager] 上屏
  */
-class SayboardProIME : InputMethodService(), SttEngine.Listener {
+class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
 
     private lateinit var prefs: AppPrefs
     private lateinit var keyboardView: KeyboardView
     private lateinit var textManager: TextManager
-    private lateinit var engine: SttEngine
+    private lateinit var engine: SttEngineClient
 
     /** 本地标点恢复（断句加标点）：进程级单例，常驻内存，跨 IME 服务实例复用 */
     private lateinit var punctProvider: PunctProvider
@@ -113,18 +115,20 @@ class SayboardProIME : InputMethodService(), SttEngine.Listener {
         llmEnabledLD.value = prefs.llmCorrectionEnabled
 
         // 本地标点模型预热：后台加载，保证首句识别 final 时已就绪、加标点立即生效。
-        // 进程级单例常驻（与 SttEngine 的 recognizer 一样），跨 IME 服务实例复用。
+        // 进程级单例常驻（与 sherpa recognizer 在 :stt 进程常驻同理），跨 IME 服务实例复用。
         punctProvider = PunctProvider.get(this)
         punctProvider.ensureLoaded()
 
         val postProcessor = DictionaryPostProcessor(this, CustomDictionary(prefs))
         textManager = TextManager(this, postProcessor)
 
-        // STT 引擎构造很轻量（模型加载/网络连接都推迟到 start() 之后），不阻塞 IME 启动；
-        // AudioRecorder 也只在实际点麦克风时才创建。
+        // STT 引擎客户端构造很轻量：仅发起异步 bind 模型进程（:stt）+ prepare() 预加载，
+        // 不阻塞 IME 启动；录音（AudioRecorder）只在实际点麦克风时才创建。
         // 键盘视图不在这里构造，推迟到 onCreateInputView（见下），确保 attach lifecycle owner
         // 严格先于 Compose 组合发生。
-        engine = SttEngine.from(this, this)
+        // 注：SttEngineClient 每次新建（非进程级单例）——每次键盘收起/切换 IME 进程自杀，
+        // 新实例重新 bind，模型进程（:stt）复用常驻 recognizer。
+        engine = SttEngineClient.from(this, this)
     }
 
     override fun onCreateInputView(): View {
@@ -274,13 +278,19 @@ class SayboardProIME : InputMethodService(), SttEngine.Listener {
         imeScope.cancel()
         mainHandler.removeCallbacks(resetCorrectionRunnable)
         lifecycleOwner.onDestroy()
-        // 进程/服务销毁：彻底释放常驻模型资源（recognizer + 本地 LLM 模型）
+        // 解除 :stt 模型进程绑定（模型进程继续常驻，recognizer 保留给下次 IME bind 复用）
         engine.destroy()
         LocalLlamaModel.release()
         super.onDestroy()
+        // ── IME 自杀：每次键盘收起/切换（onDestroy）直接杀进程 ──
+        // 原因：三星系统焦点残留导致 InputConnection 绑定陈旧，产生幽灵提交（识别结果
+        // 提交进已死的连接）。杀掉进程后，下次键盘弹出是全新进程，InputConnection 绑定
+        // 每次全新，根治残留。
+        // 放最后：CrashLogger 同步写文件，上面的日志已落盘无碍；:stt 模型进程独立存活。
+        Process.killProcess(Process.myPid())
     }
 
-    // ── SttEngine.Listener：识别结果上屏 ────────────────────────────
+    // ── SttEngineClient.Listener：识别结果上屏 ───────────────────────
 
     override fun onPartial(text: String) {
         // 流式预览节点留痕（截断 20 字符）：排查"有识别但不上屏/预览卡住"
@@ -543,7 +553,8 @@ class SayboardProIME : InputMethodService(), SttEngine.Listener {
                     // 目标语言模型未下载：保持当前语言，只提示
                     return
                 }
-                // 模型路径变了：SttEngine 下次 start 时 ensureProvider 检测到 path 变化会自动重建 recognizer
+                // 模型路径变了：SttEngineClient 下次 start 时 ensureProvider 检测到 path 变化，
+                // 会重新走 prepare（模型进程侧 SherpaProvider 检测到路径变化重建 recognizer）
                 prefs.sherpaModelPath = modelDir.absolutePath
             } else {
                 prefs.whisperLanguage = if (target == AppPrefs.LANG_EN) "en" else "zh"

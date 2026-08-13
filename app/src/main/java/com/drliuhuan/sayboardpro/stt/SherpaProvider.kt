@@ -77,6 +77,20 @@ class SherpaProvider(
     @Volatile
     private var loading = false
 
+    /**
+     * 本次会话热词覆盖（模型进程经 AIDL ISttService.start 注入；为空时回退到 [buildHotwords]，
+     * 即 prefs 词库）。与 recognizer 重建判断（[hotwordsEnabledAtBuild]）解耦：重建判断以
+     * prefs 词库为准，两进程共享同一 prefs，注入值与 prefs 一致。会话结束由下一次 start 覆盖。
+     */
+    @Volatile
+    var sessionHotwords: String = ""
+
+    /**
+     * 是否有进行中的识别会话（stream/解码线程未清理）。服务进程在新会话
+     * （ISttService.start）前调用，用于清理 IME 中途死亡残留的旧会话。
+     */
+    fun hasActiveSession(): Boolean = sessionActive
+
     // ── 一次"录音-识别"会话状态 ──────────────────────────────────────
     private var stream: OnlineStream? = null
     private var sessionActive = false
@@ -319,7 +333,8 @@ class SherpaProvider(
     private fun ensureSession() {
         if (sessionActive) return
         val rec = recognizer ?: return
-        val hotwords = buildHotwords()
+        // 会话热词优先取 AIDL start 注入值（服务进程场景），否则回退到 prefs 词库
+        val hotwords = if (sessionHotwords.isNotEmpty()) sessionHotwords else buildHotwords()
         val s = try {
             CrashLogger.heartbeat("sherpa:createStream-start")
             // 词库为空：传空字符串（buildRecognizer 已把 hotwordsScore 置 0，
