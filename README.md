@@ -110,6 +110,7 @@ KoeType stands on the shoulders of many great open-source projects. Sincere than
 - **drliuhuan** — 产品设计、需求定义、测试验证 / product design, requirements, testing
 - **Hermes** — 架构方案、日志分析、编译打包与交付 / architecture, log analysis, builds & delivery
 - **Claude Code** — 代码实现 / code implementation
+- **DeepSeek** — 推理模型（驱动 Claude Code 与 Hermes 的底层 LLM）/ LLM inference model powering Claude Code and Hermes
 
 ## 许可 / License
 

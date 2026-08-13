@@ -3,6 +3,7 @@
 按拼音/字母排序 / In alphabetical order:
 
 - Claude Code — 代码实现 / code implementation（AI 编码代理 / AI coding agent）
+- DeepSeek — 推理模型 / LLM inference model（驱动 Claude Code 与 Hermes 的底层 LLM / powering Claude Code and Hermes）
 - Hermes — 架构方案、日志分析、编译打包与交付 / architecture, log analysis, builds & delivery（AI 代理 / AI agent）
 - drliuhuan — 项目发起人、产品设计、需求定义、测试验证 / project initiator, product design, requirements, testing
 
