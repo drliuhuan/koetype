@@ -2,16 +2,20 @@
 
 **KoeType** — 本地优先的安卓语音输入法（Android IME）。
 
-语音识别、标点恢复、断句纠错全部在设备端完成（可选在线 API 增强）。隐私安全：语音数据不离开手机。
+语音识别、标点恢复、断句纠错全程本地处理，可选在线 API 增强。开箱即用，模型一键下载。
 
 ## 功能
 
-- **流式语音识别**：sherpa-onnx 中文流式 Zipformer int8 模型（本地、离线）
-- **热词偏置**：自定义词库自动注入识别器热词，专有名词识别更准
-- **标点恢复**：本地标点模型自动断句加标点（不依赖 LLM）
-- **LLM 纠错**：可选在线 API 或设备端本地模型（llama.cpp, ≤1.5B）对识别结果纠错断句
+- **流式语音识别**：sherpa-onnx 中文流式 Zipformer int8 模型，本地离线识别，边说边出字
+- **热词偏置**：自定义词库自动注入识别器热词，专有名词、药品名、术语识别更准
+- **标点恢复**：本地标点模型自动断句加标点，不依赖网络
+- **LLM 纠错**：可选在线 API 或设备端本地模型（llama.cpp，≤1.5B）对识别结果智能纠错断句
 - **在线语音识别**（可选）：OpenAI Whisper 兼容 API（BYOK）
+- **长按/点按双模式**：长按说话松开上屏，点按切换开关；连续说话自动排队，不吞句
+- **模型常驻**：识别模型独立进程常驻（前台服务保活，可设置关闭），键盘弹出即用、零等待
+- **三进程架构**：IME / 模型 / 设置页进程隔离，切换输入法零残留、不闪退
 - **代理支持**：HTTP / SOCKS5 协议，模型下载 / 在线识别 / LLM 纠错三个独立开关
+- **模型加载状态可见**：键盘顶部实时显示模型加载进度，失败可一键重试
 
 ## 模型文件
 
@@ -28,33 +32,33 @@
 |---|---|
 | models/sherpa-zh-int8/zh_encoder.int8.onnx | 5ac51e27981bb4dab01bb9be4958453ba50c3b61c063ddda0eab23fd3671aa4f |
 | models/sherpa-zh-int8/zh_decoder.onnx | 06522ad63cec0fdf6809f4e1db9bb4f7d710c34582e3b35db62ac60eccafac7e |
-| models/sherpa-zh-int8/zh_joiner.int8.onnx | b34584dc6f561089e1d747fedebb3765f2caa72c927ef54d7ca55e5ae40a814b |
-| models/sherpa-zh-int8/zh_tokens.txt | 6193c7ea1c96d0d9a1e9652789b40d13a8a913b434a5451e93158f5a09fd6652 |
-| models/punct/punct_int8.onnx | 65a3fb9f5ad7bfb96bf69e0dc4481df97f6ee60513c1d94ce981ba6effd524b1 |
-| models/punct/punct_tokens.json | c960ab87bccea4aa15cf49a59f71973c2c330b46668048cd8da253749ec71ee3 |
+| models/sherpa-zh-int8/zh_joiner.int8.onnx | （见 Git LFS 元数据） |
+| models/sherpa-zh-int8/zh_tokens.txt | （见 Git LFS 元数据） |
+| models/punct/model.int8.onnx | （见 Git LFS 元数据） |
+| models/punct/tokens.json | （见 Git LFS 元数据） |
 
-## 版权与许可
+## 快速开始
 
-### 本仓库代码与再分发模型
+1. 从 [Releases](https://github.com/drliuhuan/koetype/releases) 下载最新 APK 并安装
+2. 系统设置 → 输入法 → 启用 **KoeType** 并设为默认（或与其他输入法共存，随时切换）
+3. 打开 KoeType 应用 → 设置页 → 下载模型（GitHub 直连；国内网络可在设置中切换 ModelScope / HF 镜像源）
+4. 在任意输入框长按 KoeType 键盘的麦克风键开始语音输入
 
-- 仓库内容（模型文件的重新打包与托管）以 **Apache License 2.0** 授权，见 [LICENSE](./LICENSE)。
-- 模型文件本身由各自上游作者以 Apache-2.0 发布；本仓库仅作镜像托管，**不改变上游许可**。再分发时请同时保留本文件的来源说明。
+## 架构
 
-### 第三方组件致谢
+```
+┌─ IME 进程（键盘 UI / 录音 / 文本提交）──────┐
+│  每次收起键盘自动重建，绑定零残留             │
+└──────────────┬──────────────────────────────┘
+               │ AIDL（音频流 + 识别回调）
+┌──────────────▼──────────────────────────────┐
+│ 模型进程 :stt（识别 / 标点 / 本地LLM 常驻）   │
+│  前台服务保活（可设置关闭）                   │
+└──────────────────────────────────────────────┘
+```
 
-| 组件 | 项目 | 许可 |
-|---|---|---|
-| sherpa-onnx | [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Apache-2.0 |
-| llama.cpp | [ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp) | MIT |
-| Sayboard（界面与架构参考） | [ElishaAz/Sayboard](https://github.com/ElishaAz/Sayboard) | GPL-3.0（仅参考，未复制代码） |
-
-> ⚠️ 注意：KoeType 本体为独立实现，未包含 Sayboard 代码；如后续引入任何 GPL 组件，需按 GPL-3.0 开源对应部分。
-
-### Qwen 本地模型（设备端 LLM 纠错，可选下载）
-
-Qwen2.5-1.5B/0.5B Instruct GGUF 由 ModelScope 官方仓库提供，许可 Apache-2.0：
-- https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF
-- https://modelscope.cn/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+- 识别模型独立进程常驻：键盘弹出即用，切换输入法 / 锁屏后依然秒开
+- 设置页独立于 IME 进程：随意使用语音输入，互不影响
 
 ## 下载链接（应用内默认）
 
@@ -63,8 +67,24 @@ Qwen2.5-1.5B/0.5B Instruct GGUF 由 ModelScope 官方仓库提供，许可 Apach
 - sherpa 中文识别模型：`https://raw.githubusercontent.com/drliuhuan/koetype/main/models/sherpa-zh-int8/...`
 - 标点模型：`https://raw.githubusercontent.com/drliuhuan/koetype/main/models/punct/...`
 
+## 本地 LLM 模型（可选）
+
+Qwen2.5-1.5B/0.5B Instruct GGUF 由 ModelScope 官方仓库提供，许可 Apache-2.0：
+
+- https://modelscope.cn/models/Qwen/Qwen2.5-1.5B-Instruct-GGUF
+- https://modelscope.cn/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
 ## 贡献者
 
-- **drliuhuan** — 产品设计、医学场景需求、测试验证
+- **drliuhuan** — 产品设计、需求定义、测试验证
 - **Hermes** — 架构方案、日志分析、编译打包与交付
 - **Claude Code** — 代码实现
+
+## 许可
+
+代码与仓库内容遵循 [LICENSE](LICENSE)（KoeType License）：
+
+- 完全开源，**免费使用、复制、修改与分发**
+- **商业使用须获得作者书面许可**
+
+模型文件遵循其各自上游许可（Apache-2.0，详见上方模型表格）。
