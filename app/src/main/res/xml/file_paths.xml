@@ -4,4 +4,9 @@
     <external-files-path
         name="crash_logs"
         path="crash_logs/" />
+
+    <!-- 应用内更新下载的 APK 目录：getExternalFilesDir(null)/update -->
+    <external-files-path
+        name="update"
+        path="update/" />
 </paths>

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -89,6 +91,8 @@ import com.drliuhuan.sayboardpro.providers.ProviderPreset
 import com.drliuhuan.sayboardpro.providers.ServiceCatalog
 import com.drliuhuan.sayboardpro.providers.buildChatCompletionsUrl
 import com.drliuhuan.sayboardpro.providers.buildModelsUrl
+import com.drliuhuan.sayboardpro.update.UpdateChecker
+import com.drliuhuan.sayboardpro.update.UpdateDownloader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -242,7 +246,7 @@ fun SettingsScreen(
                     3 -> LlmSection(prefs)
                     4 -> ProxySection(prefs)
                     5 -> LogsSection(context)
-                    6 -> AboutSection()
+                    6 -> AboutSection(prefs)
                 }
             }
         }
@@ -2378,10 +2382,11 @@ private const val KOETYPE_GITHUB_URL = "https://github.com/drliuhuan/koetype"
 private const val KOETYPE_ALIPAY_URL = "https://qr.alipay.com/fkx11216aybdf4j4uvmycd3"
 private const val POLYFORM_LICENSE_URL = "https://polyformproject.org/licenses/noncommercial/1.0.0"
 
-/** 关于区块：设置页独立分区（抽屉第 7 项），展示版本 / GitHub / 许可 / 致谢 / 捐赠 */
+/** 关于区块：设置页独立分区（抽屉第 7 项），展示版本 / 检查更新 / GitHub / 许可 / 致谢 / 捐赠 */
 @Composable
-private fun AboutSection() {
+private fun AboutSection(prefs: AppPrefs) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // 打开外部链接（GitHub / 支付宝 / PolyForm 许可）；无浏览器或地址非法时 Toast 提示
     fun openUrl(url: String) {
@@ -2392,9 +2397,70 @@ private fun AboutSection() {
         }
     }
 
+    // ── 检查更新状态 ──
+    var checkingUpdate by remember { mutableStateOf(false) }   // 是否正在请求 GitHub 最新版
+    var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) } // 最新版信息（弹对话框用）
+    var downloadProgress by remember { mutableFloatStateOf(-1f) } // <0=未下载；0f..1f=下载中
+
+    // 检查 GitHub 最新版：网络操作在后台线程，完成回主线程更新 UI
+    fun checkForUpdate() {
+        if (checkingUpdate) return
+        checkingUpdate = true
+        scope.launch {
+            val info = withContext(Dispatchers.IO) {
+                UpdateChecker.checkLatest(ProxyHelper.proxyForDownload(prefs))
+            }
+            checkingUpdate = false
+            when {
+                info.errorMessage != null ->
+                    Toast.makeText(context, "检查更新失败：${info.errorMessage}", Toast.LENGTH_SHORT).show()
+                info.hasUpdate -> updateInfo = info
+                else -> Toast.makeText(context, "已是最新版本", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 下载最新版 APK → 完成交给系统安装（FileProvider + ACTION_VIEW）。
+    // 无匹配 ABI 的下载地址时改为打开 GitHub Releases 让用户手动下载
+    fun startUpdateDownload(info: UpdateChecker.UpdateInfo) {
+        val url = info.downloadUrl ?: run {
+            openUrl("https://github.com/drliuhuan/koetype/releases")
+            return
+        }
+        if (downloadProgress >= 0f) return // 已在下载
+        scope.launch {
+            downloadProgress = 0f
+            val base = context.getExternalFilesDir(null)
+            val target = if (base != null) File(File(base, "update"), "KoeType-latest.apk") else null
+            // onProgress 在 IO 线程回调：Compose 快照状态线程安全，可直接写进度
+            val ok = target != null &&
+                UpdateDownloader.download(url, target, ProxyHelper.proxyForDownload(prefs)) { p ->
+                    downloadProgress = p
+                }
+            downloadProgress = -1f
+            if (ok && target != null) {
+                updateInfo = null
+                installApk(context, target)
+            } else {
+                Toast.makeText(context, "下载失败，请稍后重试", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     SectionCard("关于 KoeType") {
         // 版本：从 BuildConfig 读 versionName（versionName "0.1"）
         AboutInfoRow("版本", BuildConfig.VERSION_NAME)
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // 检查更新：点击查询 GitHub 最新版；无新版 Toast，有新版弹对话框
+        AboutLinkRow(
+            "检查更新",
+            if (checkingUpdate) "检查中…" else "点击检查",
+            onClick = ::checkForUpdate
+        )
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
 
         // GitHub 仓库：可点击跳转浏览器
         AboutLinkRow("GitHub 仓库", KOETYPE_GITHUB_URL, onClick = { openUrl(KOETYPE_GITHUB_URL) })
@@ -2413,6 +2479,75 @@ private fun AboutSection() {
 
         // 捐赠：支付宝链接 + 微信收款码 + 声明
         DonateBlock(onOpenUrl = ::openUrl)
+    }
+
+    // 有新版：弹对话框，标题版本号 + release notes 摘要 + 下载更新/稍后；下载中显示进度条
+    updateInfo?.takeIf { it.hasUpdate }?.let { info ->
+        AlertDialog(
+            onDismissRequest = { if (downloadProgress < 0f) updateInfo = null },
+            title = { Text("发现新版本 v${info.latestVersion}") },
+            text = {
+                if (downloadProgress >= 0f) {
+                    Column {
+                        Text("正在下载更新…", style = MaterialTheme.typography.body2)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(progress = downloadProgress)
+                    }
+                } else {
+                    Column {
+                        // 发行版标题（GitHub name 字段）与 tag 不同时展示
+                        if (info.releaseName.isNotBlank() && info.releaseName != "v${info.latestVersion}") {
+                            Text("发行版：${info.releaseName}", style = MaterialTheme.typography.caption)
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                        Text(summarizeReleaseNotes(info.releaseNotes), style = MaterialTheme.typography.body2)
+                        if (info.downloadUrl == null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "未找到匹配本机 CPU 架构（${Build.SUPPORTED_ABIS.firstOrNull() ?: "未知"}）的安装包，请手动下载。",
+                                style = MaterialTheme.typography.caption
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (downloadProgress < 0f) {
+                    TextButton(onClick = { startUpdateDownload(info) }) {
+                        Text(if (info.downloadUrl != null) "下载更新" else "手动下载")
+                    }
+                }
+            },
+            dismissButton = {
+                if (downloadProgress < 0f) {
+                    TextButton(onClick = { updateInfo = null }) { Text("稍后") }
+                }
+            }
+        )
+    }
+}
+
+/** release notes 摘要：取 body 前 ~200 字符；空内容给提示 */
+private fun summarizeReleaseNotes(body: String): String {
+    val trimmed = body.trim()
+    if (trimmed.isEmpty()) return "请前往 GitHub 查看更新说明。"
+    return if (trimmed.length > 200) trimmed.take(200) + "…" else trimmed
+}
+
+/** 安装已下载的 APK：FileProvider 授权 + ACTION_VIEW；未知来源安装确认由系统处理 */
+private fun installApk(context: Context, file: File) {
+    try {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW)
+        intent.setDataAndType(uri, "application/vnd.android.package-archive")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "打开安装包失败：${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
 

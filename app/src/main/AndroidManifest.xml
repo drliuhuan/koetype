@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 应用内更新：ACTION_VIEW 安装 APK 需要；Android 8+ 首次安装会引导用户在系统设置里
+         允许"安装未知应用"（授予后才能走通安装流程） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- :stt 模型进程前台服务：前台保活需要 FOREGROUND_SERVICE；specialUse 类型（Android 14+）
          只要求 FOREGROUND_SERVICE_SPECIAL_USE 权限 + manifest property 声明用途，无 eligible-state
          前台检查（IME 场景适用，避免"非前台 :stt 进程启动 microphone FGS 被拒"）。
