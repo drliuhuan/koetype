@@ -58,15 +58,24 @@ object ZipTools {
     }
 
     private fun extractEntry(zipfile: ZipFile, entry: ZipEntry, outputDir: String) {
+        // Zip Slip 防护：拒绝绝对路径、含 ../ 或 ..\ 的路径穿越、空名，
+        // 防止恶意 zip 通过 entry.name 写出目标目录覆盖任意文件。
+        if (!isSafeEntryName(entry.name)) {
+            CrashLogger.w(TAG, "DL: 拒绝不安全的 zip 条目: ${entry.name}")
+            return
+        }
         if (entry.isDirectory) {
             val dir = File(outputDir, entry.name)
             if (!dir.exists()) dir.mkdirs()
             return
         }
         val outputFile = File(outputDir, entry.name)
-        if (!outputFile.parentFile?.exists()!!) {
-            outputFile.parentFile?.mkdirs()
+        val parent = outputFile.parentFile
+        if (parent == null) {
+            CrashLogger.w(TAG, "DL: 条目无父目录，跳过: ${entry.name}")
+            return
         }
+        if (!parent.exists()) parent.mkdirs()
         zipfile.getInputStream(entry).use { zin ->
             BufferedInputStream(zin).use { input ->
                 BufferedOutputStream(FileOutputStream(outputFile)).use { output ->
@@ -78,6 +87,17 @@ object ZipTools {
                 }
             }
         }
+    }
+
+    /** Zip Slip 防护：拒绝绝对路径、含 ../ 或 ..\ 的路径穿越、空名。 */
+    private fun isSafeEntryName(name: String): Boolean {
+        if (name.isEmpty()) return false
+        // 绝对路径：Unix "/"、Windows "\" 或盘符（如 C:）
+        if (name.startsWith("/") || name.startsWith("\\")) return false
+        if (name.length >= 2 && name[1] == ':') return false
+        // 路径穿越：".." 段（含 ../ 或 ..\）
+        if (name == ".." || name.contains("../") || name.contains("..\\")) return false
+        return true
     }
 
     /**
@@ -99,7 +119,8 @@ object ZipTools {
         }
         try {
             if (targetDir.exists()) Constants.deleteRecursive(targetDir)
-            if (!targetDir.parentFile?.exists()!!) targetDir.parentFile?.mkdirs()
+            val targetParent = targetDir.parentFile
+            if (targetParent != null && !targetParent.exists()) targetParent.mkdirs()
             if (!targetDir.mkdirs()) {
                 Log.e(TAG, "无法创建目标目录: ${targetDir.absolutePath}")
                 CrashLogger.w(TAG, "DL: 无法创建目标目录: ${targetDir.absolutePath}")
@@ -116,7 +137,8 @@ object ZipTools {
                         return false
                     }
                     val outputFile = File(targetDir, outputRel)
-                    if (!outputFile.parentFile?.exists()!!) outputFile.parentFile?.mkdirs()
+                    val outputParent = outputFile.parentFile
+                    if (outputParent != null && !outputParent.exists()) outputParent.mkdirs()
                     zip.getInputStream(entry).use { zin ->
                         BufferedInputStream(zin).use { input ->
                             BufferedOutputStream(FileOutputStream(outputFile)).use { output ->

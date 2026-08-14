@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,14 +28,12 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
-import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalConfiguration
@@ -46,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.MutableLiveData
 import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.Constants
+import com.drliuhuan.sayboardpro.keyboardThemeColors
 import com.drliuhuan.sayboardpro.R
 import com.drliuhuan.sayboardpro.stt.SttEngineClient
 import com.drliuhuan.sayboardpro.stt.SttEngineClient.ModelState
@@ -104,7 +104,7 @@ class KeyboardView(
             if (isPortrait) baseFraction else (baseFraction + 0.15f).coerceAtMost(0.65f)
         val height = (LocalConfiguration.current.screenHeightDp * heightFraction).toInt().dp
 
-        SayboardProTheme {
+        SayboardProTheme(prefs) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -141,13 +141,15 @@ class KeyboardView(
             IconButton(onClick = { listener.hideKeyboardClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_arrow_back),
-                    contentDescription = stringResource(R.string.ime_hide_keyboard)
+                    contentDescription = stringResource(R.string.ime_hide_keyboard),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             // provider 名称（识别引擎展示名）
             Text(
                 text = providerName,
                 style = MaterialTheme.typography.caption.copy(fontSize = 14.sp),
+                color = MaterialTheme.colors.onSurface,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -157,13 +159,15 @@ class KeyboardView(
             IconButton(onClick = { listener.dictionaryClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_dictionary),
-                    contentDescription = stringResource(R.string.ime_dictionary)
+                    contentDescription = stringResource(R.string.ime_dictionary),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             IconButton(onClick = { listener.settingsClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_settings),
-                    contentDescription = stringResource(R.string.ime_open_settings)
+                    contentDescription = stringResource(R.string.ime_open_settings),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
@@ -333,7 +337,8 @@ class KeyboardView(
                     }
                     Text(
                         text = statusText(state, errorMsg),
-                        style = MaterialTheme.typography.h6.copy(fontSize = 22.sp)
+                        style = MaterialTheme.typography.h6.copy(fontSize = 22.sp),
+                        color = MaterialTheme.colors.onSurface
                     )
                     if (state == State.LISTENING) {
                         LinearProgressIndicator(
@@ -389,6 +394,7 @@ class KeyboardView(
             Text(
                 text = label,
                 style = MaterialTheme.typography.body1.copy(fontSize = 20.sp),
+                color = MaterialTheme.colors.onSurface,
                 maxLines = 1
             )
         }
@@ -412,7 +418,8 @@ class KeyboardView(
             IconButton(onClick = { listener.imePickerClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_language),
-                    contentDescription = stringResource(R.string.ime_switch_keyboard)
+                    contentDescription = stringResource(R.string.ime_switch_keyboard),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             // 语言按钮：中文 "中" / 英文 "EN"，点击切换
@@ -454,7 +461,8 @@ class KeyboardView(
             IconButton(onClick = { listener.enterClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_enter),
-                    contentDescription = stringResource(R.string.ime_enter_newline)
+                    contentDescription = stringResource(R.string.ime_enter_newline),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
         }
@@ -470,7 +478,11 @@ class KeyboardView(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(label, style = MaterialTheme.typography.body1.copy(fontSize = 22.sp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.body1.copy(fontSize = 22.sp),
+                color = MaterialTheme.colors.onSurface
+            )
         }
     }
 
@@ -651,13 +663,14 @@ data class CorrectionUiState(
 private data class SymbolKey(val zh: String, val en: String)
 
 @Composable
-fun SayboardProTheme(content: @Composable () -> Unit) {
+fun SayboardProTheme(prefs: AppPrefs, content: @Composable () -> Unit) {
+    val systemDark = isSystemInDarkTheme()
     MaterialTheme(
-        colors = lightColors(
-            primary = Color(0xFF2E7D32),
-            secondary = Color(0xFFFF9800),
-            background = Color(0xFFF5F5F5),
-            surface = Color.White
+        colors = keyboardThemeColors(
+            keyboardTheme = prefs.keyboardTheme,
+            foregroundArgb = prefs.keyboardForegroundColor,
+            backgroundArgb = prefs.keyboardBackgroundColor,
+            systemDark = systemDark
         ),
         content = content
     )
