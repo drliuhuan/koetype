@@ -204,8 +204,10 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         // 主动请求显示，用户无需再点一次输入框
         runCatching { requestShowSelf(0) }.onFailure { }
         // 预加载检查：键盘弹出即确认模型进程状态，未就绪立即触发（prepare 在 bind 成功后自动执行，
-        // 这里只做状态驱动 + 日志；用户按下时若未就绪，UI 已显示"模型加载中"）
-        if (engine.modelStateLD.value != ModelState.READY) {
+        // 这里只做状态驱动 + 日志；用户按下时若未就绪，UI 已显示"模型加载中"）。
+        // 无模型时跳过预加载：ensureReady 会触发无谓的 prepare 失败流程（"未配置 Sherpa 模型"），
+        // 白白 bind 模型进程 + 走一遍失败日志；下载模型后重弹键盘自然恢复。
+        if (engine.modelStateLD.value != ModelState.READY && isSherpaModelInstalled()) {
             CrashLogger.d(TAG, "MODEL PRELOAD: state=${engine.modelStateLD.value}, requesting prepare")
             engine.ensureReady()
         }
@@ -440,8 +442,13 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
 
     private val keyboardListener = object : KeyboardView.Listener {
         override fun micClick() {
-            if (!hasMicPermission) {
-                // 无权限：打开设置页申请
+            if (!checkMicrophonePermission()) {
+                // 无权限：提示 + 打开设置页申请（不能静默跳转，用户会以为没反应）
+                Toast.makeText(
+                    this@SayboardProIME,
+                    R.string.ime_mic_permission_needed,
+                    Toast.LENGTH_SHORT
+                ).show()
                 openSettings()
                 return
             }
@@ -451,7 +458,12 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
 
         // 长按模式：按下开始录音（松开由 micPressUp 立即结束）
         override fun micPressDown() {
-            if (!hasMicPermission) {
+            if (!checkMicrophonePermission()) {
+                Toast.makeText(
+                    this@SayboardProIME,
+                    R.string.ime_mic_permission_needed,
+                    Toast.LENGTH_SHORT
+                ).show()
                 openSettings()
                 return
             }
@@ -618,26 +630,45 @@ class SayboardProIME : InputMethodService(), SttEngineClient.Listener {
         startActivity(intent)
     }
 
-    private fun checkMicrophonePermission() {
+    /**
+     * 实时复查麦克风权限并刷新缓存字段，返回当前是否已授权。
+     * 点麦克风/长按按下时调用，不依赖 [onStartInputView] 刷新过的缓存——用户在设置页授权后，
+     * 同一键盘会话内缓存字段可能仍为 false，导致误判"无权限"而再次跳设置页。
+     */
+    private fun checkMicrophonePermission(): Boolean {
         hasMicPermission = ActivityCompat.checkSelfPermission(
             this, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
+        return hasMicPermission
     }
 
     /**
-     * 首次使用语音前检测本地模型是否已下载（复用 [SherpaModelDownloader.scanInstalled]）。
-     * sherpa 模式且未安装任何模型时，一次性 Toast 引导去设置页下载——解决"用户未下载模型
-     * 直接开语音，模型加载很久无反馈"的问题；返回 false 阻断开麦（无模型无法识别）。
-     * 模型已下载（scanInstalled 非空）或在线 API 模式直接放行，不弹提示；
-     * 提示标志用 SharedPreferences 持久化，保证"整个应用只提示一次，别每句话都弹"。
+     * sherpa 主模型与标点模型是否都已安装；非 sherpa 模式无本地模型概念，恒 true。
+     * 供两处复用：键盘弹出时是否跳过 MODEL PRELOAD、点麦克风时是否放行。
+     */
+    private fun isSherpaModelInstalled(): Boolean {
+        if (prefs.activeProvider != AppPrefs.PROVIDER_SHERPA) return true
+        return SherpaModelDownloader.scanInstalled(this).isNotEmpty() &&
+            SherpaModelDownloader.scanPunctInstalled(this) != null
+    }
+
+    /**
+     * 每次点击麦克风前检测本地模型是否就绪（主模型 + 标点模型）。
+     * sherpa 模式下主模型未安装（[SherpaModelDownloader.scanInstalled] 为空）或标点模型
+     * 未安装（[SherpaModelDownloader.scanPunctInstalled] 为 null）都算未就绪——标点模型是
+     * 识别后加标点的必需依赖，缺失同样无法完整识别。未就绪时每次点击都 Toast 引导去设置页
+     * 下载（不再一次性），并返回 false 阻断开麦；模型齐全或在线 API 模式直接放行。
      */
     private fun ensureModelDownloaded(): Boolean {
-        if (prefs.activeProvider != AppPrefs.PROVIDER_SHERPA) return true
-        if (SherpaModelDownloader.scanInstalled(this).isNotEmpty()) return true
-        if (!prefs.modelMissingTipShown) {
-            prefs.modelMissingTipShown = true
-            Toast.makeText(this, R.string.ime_model_missing_onboarding, Toast.LENGTH_SHORT).show()
+        if (isSherpaModelInstalled()) return true
+        // 主模型缺失优先提示下载模型；仅标点缺失时单独提示标点未下载
+        val mainMissing = SherpaModelDownloader.scanInstalled(this).isEmpty()
+        val res = if (mainMissing) {
+            R.string.ime_model_missing_onboarding
+        } else {
+            R.string.ime_punct_model_missing
         }
+        Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
         return false
     }
 

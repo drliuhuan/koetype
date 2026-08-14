@@ -269,7 +269,7 @@ class SttService : Service() {
 
     /** 后台加载 recognizer（不在 binder 线程上做 buildRecognizer，避免阻塞 IPC） */
     private fun startLoadInBackground() {
-        val p = SherpaProvider(AppPrefs(this), providerListener)
+        val p = SherpaProvider(this, AppPrefs(this), providerListener)
         provider = p
         val thread = Thread {
             try {

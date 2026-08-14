@@ -1,5 +1,6 @@
 package com.drliuhuan.sayboardpro.stt
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.drliuhuan.sayboardpro.AppPrefs
@@ -48,6 +49,7 @@ import java.util.ArrayDeque
  *   录音灵敏度负责，避免"段内静音被提前切开"与引擎重复结束。
  */
 class SherpaProvider(
+    private val context: Context,
     private val prefs: AppPrefs,
     private val listener: SttProvider.Listener
 ) : SttProvider {
@@ -116,18 +118,27 @@ class SherpaProvider(
     override val supportsPartialResults: Boolean = true
 
     override fun prepare(onReady: (Boolean, String?) -> Unit) {
-        val modelPath = prefs.sherpaModelPath
-        if (modelPath.isBlank()) {
-            CrashLogger.w(TAG, "SHERPA: prepare - 未配置模型路径")
-            onReady(false, "未配置 Sherpa 模型，请到设置页下载")
-            return
+        var modelPath = prefs.sherpaModelPath
+        if (modelPath.isBlank() || !File(modelPath).isDirectory || !SherpaModelDownloader.validateModelDir(File(modelPath))) {
+            // 自动找回：prefs 路径为空/失效时扫描默认目录（与 ensureModelDownloaded 的
+            // scanInstalled 判断一致），找到完整模型则写回 prefs 并加载——解决"文件在但
+            // 配置丢失/被清空"时引擎起不来、点麦克风无反应的问题
+            val found = SherpaModelDownloader.scanInstalled(context).firstOrNull()
+            if (found != null) {
+                CrashLogger.w(TAG, "SHERPA: 配置路径无效(${modelPath.ifBlank { "<空>" }})，自动找回模型: ${found.absolutePath}")
+                prefs.sherpaModelPath = found.absolutePath
+                modelPath = found.absolutePath
+            } else if (modelPath.isBlank()) {
+                CrashLogger.w(TAG, "SHERPA: prepare - 未配置模型路径")
+                onReady(false, "未配置 Sherpa 模型，请到设置页下载")
+                return
+            } else {
+                CrashLogger.w(TAG, "SHERPA: prepare - 模型目录不完整: $modelPath")
+                onReady(false, "模型目录不完整，请到设置页重新下载：$modelPath")
+                return
+            }
         }
         val dir = File(modelPath)
-        if (!dir.isDirectory || !SherpaModelDownloader.validateModelDir(dir)) {
-            CrashLogger.w(TAG, "SHERPA: prepare - 模型目录不完整: $modelPath")
-            onReady(false, "模型目录不完整，请到设置页重新下载：$modelPath")
-            return
-        }
 
         val hotwords = buildHotwords()
 

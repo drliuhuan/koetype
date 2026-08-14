@@ -79,9 +79,6 @@ class AppPrefs(context: Context) {
         // 设置页推荐系统输入法的一次性提示（task49c：引导不强制）
         private const val KEY_SETTINGS_IME_TIP_SHOWN = "settings_ime_tip_shown"
 
-        // 键盘语音"未下载模型"引导提示（一次性，避免每句话都弹）
-        private const val KEY_MODEL_MISSING_TIP_SHOWN = "model_missing_tip_shown"
-
         // 代理设置
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
         private const val KEY_PROXY_PROTOCOL = "proxy_protocol"
@@ -306,15 +303,6 @@ class AppPrefs(context: Context) {
     var settingsImeTipShown: Boolean
         get() = sp.getBoolean(KEY_SETTINGS_IME_TIP_SHOWN, false)
         set(value) = sp.edit().putBoolean(KEY_SETTINGS_IME_TIP_SHOWN, value).apply()
-
-    /**
-     * 键盘语音"未下载模型"引导提示是否已展示（一次性）。
-     * 持久标志：IME 每次自杀重建，实例字段会在每次键盘弹出都提示；只有
-     * SharedPreferences 才能保证"整个应用只提示一次"。默认 false。
-     */
-    var modelMissingTipShown: Boolean
-        get() = sp.getBoolean(KEY_MODEL_MISSING_TIP_SHOWN, false)
-        set(value) = sp.edit().putBoolean(KEY_MODEL_MISSING_TIP_SHOWN, value).apply()
 
     // ── 词典（JSON 序列化，见 CustomDictionary） ───────────────────
 
