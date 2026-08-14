@@ -1,6 +1,6 @@
 # KoeType
 
-**KoeType** — 本地优先的安卓语音输入法（Android IME）。当前版本 **0.1** / Current version: **0.1**
+**KoeType** — 本地优先的安卓语音输入法（Android IME）
 
 > **🌐 语言说明 / Language Notice**
 > 本项目主要面向中文使用环境。英文界面尚未完善，英文使用环境未经验证，如有问题请以中文环境表现为准。
