@@ -45,11 +45,18 @@ class SettingsActivity : ComponentActivity() {
         val section = intent.getStringExtra(EXTRA_SECTION)
         setContent {
             val prefs = remember { AppPrefs(this) }
-            SettingsTheme(prefs) {
+            // 主题模式用 state 持有：AppearanceSection 改主题时同步更新这里 → SettingsTheme 重组即时变色
+            val appTheme = remember { mutableStateOf(prefs.appTheme) }
+            SettingsTheme(appTheme.value) {
                 SettingsScreen(
                     initialSection = section,
                     micGranted = micGranted.value,
                     imeEnabled = imeEnabled.value,
+                    appTheme = appTheme.value,
+                    onAppThemeChange = { mode ->
+                        appTheme.value = mode
+                        prefs.appTheme = mode
+                    },
                     onRequestMic = {
                         ActivityCompat.requestPermissions(
                             this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MIC

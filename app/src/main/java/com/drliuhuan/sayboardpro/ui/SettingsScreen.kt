@@ -8,6 +8,7 @@ import android.os.Build
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,10 +27,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.Card
+import androidx.compose.material.Colors
 import androidx.compose.material.Divider
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
@@ -76,13 +79,16 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.BuildConfig
+import com.drliuhuan.sayboardpro.keyboardThemeColors
 import com.drliuhuan.sayboardpro.CrashLogger
 import com.drliuhuan.sayboardpro.Constants
 import com.drliuhuan.sayboardpro.R
@@ -112,13 +118,13 @@ import java.io.OutputStreamWriter
 import java.util.Locale
 
 /**
- * 设置页主题：按 [AppPrefs.appTheme] 选择浅色/深色，默认跟随系统。
+ * 设置页主题：按 [appTheme]（由上层 state 驱动）选择浅色/深色，默认跟随系统。
  * 颜色沿用应用品牌绿（#2E7D32），深色主题用浅绿，与语音键盘配色保持一致。
  */
 @Composable
-fun SettingsTheme(prefs: AppPrefs, content: @Composable () -> Unit) {
+fun SettingsTheme(appTheme: String, content: @Composable () -> Unit) {
     val systemDark = isSystemInDarkTheme()
-    val dark = when (prefs.appTheme) {
+    val dark = when (appTheme) {
         AppPrefs.THEME_DARK -> true
         AppPrefs.THEME_LIGHT -> false
         else -> systemDark
@@ -151,6 +157,8 @@ fun SettingsScreen(
     initialSection: String?,
     micGranted: Boolean,
     imeEnabled: Boolean,
+    appTheme: String,
+    onAppThemeChange: (String) -> Unit,
     onRequestMic: () -> Unit,
     onOpenImeSettings: () -> Unit
 ) {
@@ -282,7 +290,7 @@ fun SettingsScreen(
                     3 -> LlmSection(prefs)
                     4 -> ProxySection(prefs)
                     5 -> LogsSection(context)
-                    6 -> AppearanceSection(prefs)
+                    6 -> AppearanceSection(prefs, appTheme, onAppThemeChange)
                     7 -> AboutSection(prefs)
                 }
             }
@@ -2454,27 +2462,32 @@ private val KEYBOARD_COLOR_PRESETS = listOf(
 )
 
 @Composable
-private fun AppearanceSection(prefs: AppPrefs) {
-    var appTheme by remember { mutableStateOf(prefs.appTheme) }
+private fun AppearanceSection(
+    prefs: AppPrefs,
+    appTheme: String,
+    onAppThemeChange: (String) -> Unit
+) {
     var keyboardTheme by remember { mutableStateOf(prefs.keyboardTheme) }
+    var foregroundColor by remember { mutableIntStateOf(prefs.keyboardForegroundColor) }
+    var backgroundColor by remember { mutableIntStateOf(prefs.keyboardBackgroundColor) }
 
     SectionCard("设置界面主题") {
         Text("选择设置页的明暗外观；默认跟随系统。", style = MaterialTheme.typography.caption)
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = appTheme == AppPrefs.THEME_SYSTEM, onClick = {
-                appTheme = AppPrefs.THEME_SYSTEM; prefs.appTheme = appTheme
+                onAppThemeChange(AppPrefs.THEME_SYSTEM)
             })
             Text("跟随系统")
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = appTheme == AppPrefs.THEME_LIGHT, onClick = {
-                appTheme = AppPrefs.THEME_LIGHT; prefs.appTheme = appTheme
+                onAppThemeChange(AppPrefs.THEME_LIGHT)
             })
             Text("浅色")
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = appTheme == AppPrefs.THEME_DARK, onClick = {
-                appTheme = AppPrefs.THEME_DARK; prefs.appTheme = appTheme
+                onAppThemeChange(AppPrefs.THEME_DARK)
             })
             Text("深色")
         }
@@ -2508,23 +2521,106 @@ private fun AppearanceSection(prefs: AppPrefs) {
         }
     }
 
+    // 无交互键盘预览：配色取自当前键盘主题 + 自定义前景/背景色，随上方选择与下方调色实时变化
+    KeyboardPreview(keyboardTheme, foregroundColor, backgroundColor)
+
     if (keyboardTheme == AppPrefs.THEME_CUSTOM) {
         SectionCard("自定义颜色") {
-            Text("点选色板设置前景色与背景色。", style = MaterialTheme.typography.caption)
-            ColorSwatchRow("前景色（文字/图标）", prefs.keyboardForegroundColor) { argb ->
+            Text("色板点选，或拖动调色盘 / 输入 RGB 微调。", style = MaterialTheme.typography.caption)
+            ColorPickerRow("前景色（文字/图标）", foregroundColor) { argb ->
+                foregroundColor = argb
                 prefs.keyboardForegroundColor = argb
             }
-            ColorSwatchRow("背景色", prefs.keyboardBackgroundColor) { argb ->
+            ColorPickerRow("背景色", backgroundColor) { argb ->
+                backgroundColor = argb
                 prefs.keyboardBackgroundColor = argb
             }
         }
     }
 }
 
+/** 静态键盘布局预览（无任何交互），配色与真实键盘同源（[keyboardThemeColors]） */
 @Composable
-private fun ColorSwatchRow(label: String, currentArgb: Int, onPick: (Int) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun KeyboardPreview(keyboardTheme: String, foregroundArgb: Int, backgroundArgb: Int) {
+    val systemDark = isSystemInDarkTheme()
+    val colors = keyboardThemeColors(keyboardTheme, foregroundArgb, backgroundArgb, systemDark)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.background)
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        PreviewKeyRow(listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P").map { it to 1f }, colors, Modifier.weight(1f))
+        PreviewKeyRow(listOf("A", "S", "D", "F", "G", "H", "J", "K", "L").map { it to 1f }, colors, Modifier.weight(1f))
+        PreviewKeyRow(listOf("Z", "X", "C", "V", "B", "N", "M", "⇧").map { it to 1f }, colors, Modifier.weight(1f))
+        PreviewKeyRow(listOf("🎤" to 1f, "空格" to 4f, "⌫" to 1f), colors, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun PreviewKeyRow(keys: List<Pair<String, Float>>, colors: Colors, modifier: Modifier) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        keys.forEach { (label, weight) ->
+            Box(
+                modifier = Modifier
+                    .weight(weight)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.surface),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.caption.copy(fontSize = 13.sp),
+                    color = colors.onSurface,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorPickerRow(label: String, currentArgb: Int, onPick: (Int) -> Unit) {
+    val current = Color(currentArgb)
+    val red = (currentArgb shr 16) and 0xFF
+    val green = (currentArgb shr 8) and 0xFF
+    val blue = currentArgb and 0xFF
+
+    val hsv = colorToHsv(current)
+    var hue by remember { mutableFloatStateOf(hsv[0]) }
+    var saturation by remember { mutableFloatStateOf(hsv[1]) }
+    var value by remember { mutableFloatStateOf(hsv[2]) }
+    var redText by remember { mutableStateOf(red.toString()) }
+    var greenText by remember { mutableStateOf(green.toString()) }
+    var blueText by remember { mutableStateOf(blue.toString()) }
+
+    fun syncRgbText(argb: Int) {
+        redText = ((argb shr 16) and 0xFF).toString()
+        greenText = ((argb shr 8) and 0xFF).toString()
+        blueText = (argb and 0xFF).toString()
+    }
+
+    fun applyColor(c: Color) {
+        val argb = c.toArgb()
+        val h = colorToHsv(c)
+        if (h[1] > 0f) hue = h[0] // 灰阶（饱和度为 0）时保留色相，避免滑块跳变
+        saturation = h[1]
+        value = h[2]
+        syncRgbText(argb)
+        onPick(argb)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.subtitle2)
+
+        // 预置色板：选中项描边 + 对号
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             KEYBOARD_COLOR_PRESETS.forEach { c ->
                 val argb = c.toArgb()
@@ -2534,16 +2630,105 @@ private fun ColorSwatchRow(label: String, currentArgb: Int, onPick: (Int) -> Uni
                         .size(32.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(c)
-                        .clickable { onPick(argb) },
+                        .border(
+                            width = if (selected) 2.dp else 1.dp,
+                            color = if (selected) MaterialTheme.colors.primary else Color(0x33000000),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clickable { applyColor(c) },
                     contentAlignment = Alignment.Center
                 ) {
                     if (selected) {
-                        Text("✓", color = if (c.luminance() > 0.5f) Color.Black else Color.White)
+                        Text("✓", color = if (c.luminance() > 0.5f) Color.Black else Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+
+        // HSV 调色盘：色相 + 饱和度 + 明度
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("色相", style = MaterialTheme.typography.caption, modifier = Modifier.width(48.dp))
+            Slider(
+                value = hue,
+                onValueChange = { h ->
+                    hue = h
+                    applyColor(Color.hsv(h, saturation, value))
+                },
+                valueRange = 0f..360f,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("饱和", style = MaterialTheme.typography.caption, modifier = Modifier.width(48.dp))
+            Slider(
+                value = saturation,
+                onValueChange = { s ->
+                    saturation = s
+                    applyColor(Color.hsv(hue, s, value))
+                },
+                valueRange = 0f..1f,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("明度", style = MaterialTheme.typography.caption, modifier = Modifier.width(48.dp))
+            Slider(
+                value = value,
+                onValueChange = { v ->
+                    value = v
+                    applyColor(Color.hsv(hue, saturation, v))
+                },
+                valueRange = 0f..1f,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // RGB 数值输入（非法/越界自动钳制 0-255）
+        RgbInputRow("R", redText, { redText = it }) { r -> applyColor(Color(r, green, blue)) }
+        RgbInputRow("G", greenText, { greenText = it }) { g -> applyColor(Color(red, g, blue)) }
+        RgbInputRow("B", blueText, { blueText = it }) { b -> applyColor(Color(red, green, b)) }
     }
+}
+
+@Composable
+private fun RgbInputRow(label: String, text: String, onText: (String) -> Unit, onChannel: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.caption, modifier = Modifier.width(24.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { raw ->
+                val digits = raw.filter { it.isDigit() }
+                onText(digits)
+                digits.toLongOrNull()?.let { onChannel(it.coerceIn(0L, 255L).toInt()) }
+            },
+            modifier = Modifier.weight(1f),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.body2.copy(fontSize = 14.sp)
+        )
+    }
+}
+
+/** Color → HSV（h: 0~360, s/v: 0~1），用于调色盘初始化与反向同步 */
+private fun colorToHsv(color: Color): FloatArray {
+    val r = color.red
+    val g = color.green
+    val b = color.blue
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+    val v = max
+    val s = if (max <= 0f) 0f else delta / max
+    var h = 0f
+    if (delta > 0f) {
+        h = when (max) {
+            r -> ((g - b) / delta) % 6f
+            g -> (b - r) / delta + 2f
+            else -> (r - g) / delta + 4f
+        } * 60f
+        if (h < 0f) h += 360f
+    }
+    return floatArrayOf(h, s, v)
 }
 
 // ── 关于 KoeType（版本 / GitHub / 许可 / 致谢 / 捐赠） ────────────────
