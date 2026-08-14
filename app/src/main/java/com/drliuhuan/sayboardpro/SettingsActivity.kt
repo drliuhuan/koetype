@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,25 @@ class SettingsActivity : ComponentActivity() {
             this, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
         imeEnabled.value = isImeEnabled()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_MIC) return
+        // 授权结果回调：更新 micGranted 状态（驱动设置页授权卡片消失/保留）并给出明确反馈。
+        // 之前缺失此回调——用户点"允许"后 micGranted 不更新、也无任何提示，体验上"无反应"。
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        micGranted.value = granted
+        if (granted) {
+            Toast.makeText(this, R.string.settings_mic_granted, Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, R.string.settings_mic_denied, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun isImeEnabled(): Boolean {

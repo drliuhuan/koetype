@@ -33,6 +33,15 @@ object SherpaModelDownloader {
     /** 二进制模型文件最小有效大小：代理/镜像错误页、截断流几乎都远小于该值 */
     private const val MIN_VALID_MODEL_BYTES: Long = 100L * 1024 // 100 KB
 
+    /** 已安装模型目录校验：encoder ≥1MB（0 字节/截断下载的明显信号，与 SherpaProvider.verifyModelFiles 对齐） */
+    private const val MIN_ENCODER_BYTES = 1_048_576L
+
+    /** decoder/joiner/tokens/bpe 最小字节数（zipformer 系列远大于此，仅做损坏兜底） */
+    private const val MIN_SMALL_MODEL_BYTES = 1_024L
+
+    /** 标点模型主文件最小字节数（int8 约 75MB，仅做损坏兜底） */
+    private const val MIN_PUNCT_MODEL_BYTES = 1_048_576L
+
     /**
      * GitHub 整包下载重入保护：设置页"中文 int8 预设下载"与"下载标点模型"两个入口都走
      * [downloadAndInstallGitHubBundle]，避免同时拉同一份 247MB zip 并写同一批目录。
@@ -136,15 +145,21 @@ object SherpaModelDownloader {
         )
     )
 
-    /** 校验一个目录是否为完整的 sherpa 模型（encoder/decoder/joiner/tokens 齐全；bpe 模型还需 bpe.model） */
+    /**
+     * 校验一个目录是否为完整的 sherpa 模型（encoder/decoder/joiner/tokens 齐全且非空；
+     * bpe 模型还需 bpe.model）。
+     * 不仅查存在性、还查文件大小：下载失败/卸载残留会留下同名但截断（0 字节/半截）的文件，
+     * 只查 exists() 会把这类目录误判为"已安装"，导致点麦克风时跳过"下载模型"提示、却在
+     * prepare 阶段才报"模型文件异常"。这里用 [File.length] 一并覆盖存在性与最小尺寸。
+     */
     fun validateModelDir(dir: File): Boolean {
         if (!dir.isDirectory) return false
         val config = configForDir(dir) ?: return false
-        return File(dir, config.encoder).exists() &&
-            File(dir, config.decoder).exists() &&
-            File(dir, config.joiner).exists() &&
-            File(dir, config.tokens).exists() &&
-            (config.bpeVocab.isBlank() || File(dir, config.bpeVocab).exists())
+        return File(dir, config.encoder).length() >= MIN_ENCODER_BYTES &&
+            File(dir, config.decoder).length() >= MIN_SMALL_MODEL_BYTES &&
+            File(dir, config.joiner).length() >= MIN_SMALL_MODEL_BYTES &&
+            File(dir, config.tokens).length() >= MIN_SMALL_MODEL_BYTES &&
+            (config.bpeVocab.isBlank() || File(dir, config.bpeVocab).length() >= MIN_SMALL_MODEL_BYTES)
     }
 
     /**
@@ -236,11 +251,11 @@ object SherpaModelDownloader {
     fun getPunctModelDir(context: Context): File =
         File(Constants.getSherpaModelsDirectory(context), PUNCT_MODEL_NAME)
 
-    /** 校验标点模型目录完整性：model.int8.onnx + 任一候选词表齐全 */
+    /** 校验标点模型目录完整性：model.int8.onnx（非空且 ≥1MB）+ 任一候选词表（非空）齐全 */
     fun validatePunctDir(dir: File): Boolean {
         if (!dir.isDirectory) return false
-        if (!File(dir, PUNCT_MODEL_FILE).exists()) return false
-        return PUNCT_VOCAB_CANDIDATES.any { File(dir, it).exists() }
+        if (File(dir, PUNCT_MODEL_FILE).length() < MIN_PUNCT_MODEL_BYTES) return false
+        return PUNCT_VOCAB_CANDIDATES.any { File(dir, it).length() > 0 }
     }
 
     /** 扫描已安装的标点模型目录；未安装返回 null */

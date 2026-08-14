@@ -13,6 +13,7 @@ import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.CrashLogger
 import com.drliuhuan.sayboardpro.audio.AudioRecorder
 import com.drliuhuan.sayboardpro.data.CustomDictionary
+import com.drliuhuan.sayboardpro.downloader.SherpaModelDownloader
 
 /**
  * STT 引擎客户端（IME 进程侧适配层）：实现原 SttEngine 的公开接口，
@@ -128,8 +129,10 @@ class SttEngineClient private constructor(
     init {
         CrashLogger.d(TAG, "CLIENT: init provider=${prefs.activeProvider}")
         providerNameLD.value = if (prefs.activeProvider == AppPrefs.PROVIDER_SHERPA) "Sherpa 本地" else "Whisper API"
-        // 预加载：键盘弹出（IME onCreate）即 bind 模型进程；bind 成功后自动 prepare()
-        if (prefs.activeProvider == AppPrefs.PROVIDER_SHERPA) {
+        // 预加载：键盘弹出（IME onCreate）即 bind 模型进程；bind 成功后自动 prepare()。
+        // 无模型时跳过 bind：否则 onServiceConnected 会触发无谓的 prepare 失败流程
+        // （"未配置 Sherpa 模型"）。下载模型后重弹键盘，新 IME 实例会重新走到这里并正常 bind。
+        if (prefs.activeProvider == AppPrefs.PROVIDER_SHERPA && isSherpaModelInstalled()) {
             bindService()
         }
     }
@@ -575,6 +578,11 @@ class SttEngineClient private constructor(
         service = null
     }
 
+    /** sherpa 主模型与标点模型是否都已安装（与 IME 侧 ensureModelDownloaded 同一判断口径） */
+    private fun isSherpaModelInstalled(): Boolean =
+        SherpaModelDownloader.scanInstalled(context).isNotEmpty() &&
+            SherpaModelDownloader.scanPunctInstalled(context) != null
+
     /**
      * 预加载驱动（幂等）：键盘弹出/绑定完成时调用，确保模型进程绑定与 prepare 流程已启动，
      * 并把加载状态驱动到 [modelStateLD]（LOADING→READY/FAILED），键盘据此显示模型加载进度条。
@@ -584,6 +592,9 @@ class SttEngineClient private constructor(
      */
     fun ensureReady() {
         if (prefs.activeProvider != AppPrefs.PROVIDER_SHERPA) return
+        // 无模型时跳过预加载：避免键盘弹出即触发 prepare 失败流程（"未配置 Sherpa 模型"），
+        // 白白 bind 模型进程 + 走一遍失败日志。下载模型后重弹键盘自然恢复。
+        if (!isSherpaModelInstalled()) return
         if (providerReady) {
             modelStateLD.value = ModelState.READY
             return

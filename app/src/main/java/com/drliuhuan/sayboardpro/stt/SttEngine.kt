@@ -27,6 +27,7 @@ import com.drliuhuan.sayboardpro.data.CustomDictionary
  * [destroy]（IME onDestroy 调用）只做软清理、保留 recognizer；[hardDestroy] 才是硬释放。
  */
 class SttEngine private constructor(
+    private val appContext: Context,
     private val prefs: AppPrefs,
     listener: Listener
 ) {
@@ -274,7 +275,7 @@ class SttEngine private constructor(
         if (provider == null || wantSherpa != providerIsSherpa) {
             CrashLogger.d(TAG, "ENGINE: provider -> ${if (wantSherpa) "sherpa" else "whisper"}")
             provider?.destroy()
-            provider = if (wantSherpa) SherpaProvider(prefs, providerListener)
+            provider = if (wantSherpa) SherpaProvider(appContext, prefs, providerListener)
                        else WhisperApiProvider(prefs, providerListener)
             providerConfigKey = ""
             providerNameLD.value = provider?.name ?: ""
@@ -425,7 +426,7 @@ class SttEngine private constructor(
                     existing.rebindListener(listener)
                     return existing
                 }
-                return SttEngine(AppPrefs(context), listener).also { instance = it }
+                return SttEngine(context, AppPrefs(context), listener).also { instance = it }
             }
         }
     }

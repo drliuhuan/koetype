@@ -31,6 +31,7 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.MutableLiveData
 import com.drliuhuan.sayboardpro.AppPrefs
 import com.drliuhuan.sayboardpro.Constants
+import com.drliuhuan.sayboardpro.downloader.SherpaModelDownloader
 import com.drliuhuan.sayboardpro.keyboardThemeColors
 import com.drliuhuan.sayboardpro.R
 import com.drliuhuan.sayboardpro.stt.SttEngineClient
@@ -518,10 +520,21 @@ class KeyboardView(
      * - LOADING：灰色小字 "模型加载中…"（不遮挡键盘）
      * - FAILED：红色小字 "模型加载失败"，点按触发引擎重试（ensureReady 幂等）
      * - READY/IDLE：不渲染
+     * - sherpa 模式无模型（主模型或标点缺失）时 LOADING 不渲染：无模型永远加载不出来，
+     *   显示"模型加载中…"会误导用户；此时点击麦克风会由 IME 直接提示去设置页下载。
+     *   模型是否安装用 remember 缓存一次判断（打开键盘时读一次磁盘），不每次重组都扫描。
      */
     @Composable
     private fun ModelStatusBar(modelState: ModelState) {
         if (modelState == ModelState.READY || modelState == ModelState.IDLE) return
+        val modelMissing = remember {
+            prefs.activeProvider == AppPrefs.PROVIDER_SHERPA &&
+                (SherpaModelDownloader.scanInstalled(ime).isEmpty() ||
+                    SherpaModelDownloader.scanPunctInstalled(ime) == null)
+        }
+        // 无模型时 LOADING/FAILED 状态条均不渲染：无模型永远加载不出来，
+        // 显示"加载中…/加载失败"都会误导用户；此时点麦克风由 IME 直接提示去设置页下载
+        if (modelMissing && (modelState == ModelState.LOADING || modelState == ModelState.FAILED)) return
         val failed = modelState == ModelState.FAILED
         val tap = if (failed) Modifier.clickable { engine.ensureReady() } else Modifier
         Box(
