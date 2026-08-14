@@ -2540,7 +2540,7 @@ private fun AppearanceSection(
     }
 }
 
-/** 静态键盘布局预览（无任何交互），配色与真实键盘同源（[keyboardThemeColors]） */
+/** 静态语音输入面板预览（无任何交互），配色与真实键盘同源（[keyboardThemeColors]） */
 @Composable
 private fun KeyboardPreview(keyboardTheme: String, foregroundArgb: Int, backgroundArgb: Int) {
     val systemDark = isSystemInDarkTheme()
@@ -2548,30 +2548,111 @@ private fun KeyboardPreview(keyboardTheme: String, foregroundArgb: Int, backgrou
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(160.dp)
+            .height(190.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(colors.background)
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        PreviewKeyRow(listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P").map { it to 1f }, colors, Modifier.weight(1f))
-        PreviewKeyRow(listOf("A", "S", "D", "F", "G", "H", "J", "K", "L").map { it to 1f }, colors, Modifier.weight(1f))
-        PreviewKeyRow(listOf("Z", "X", "C", "V", "B", "N", "M", "⇧").map { it to 1f }, colors, Modifier.weight(1f))
-        PreviewKeyRow(listOf("🎤" to 1f, "空格" to 4f, "⌫" to 1f), colors, Modifier.weight(1f))
+        // 顶部行：返回箭头 + 标题占位 + 右侧按钮簇（LLM/字典/设置/退格），对应 KeyboardView.TopRow
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PreviewIcon(R.drawable.ic_arrow_back, colors.onSurface)
+            Text(
+                text = "语音输入",
+                style = MaterialTheme.typography.caption.copy(fontSize = 12.sp),
+                color = colors.onSurface,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            PreviewPill("LLM", colors, colors.onSurface.copy(alpha = 0.7f))
+            PreviewIcon(R.drawable.ic_dictionary, colors.onSurface)
+            PreviewIcon(R.drawable.ic_settings, colors.onSurface)
+            Spacer(modifier = Modifier.width(2.dp))
+            PreviewIcon(R.drawable.ic_backspace, colors.onSurface.copy(alpha = 0.7f))
+        }
+
+        // 中部：左符号列 + 中央大麦克风/状态占位 + 右符号列，对应 KeyboardView.MiddleArea
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PreviewSymbolColumn(listOf("？", "！", "：", "…"), colors)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_mic),
+                    contentDescription = null,
+                    tint = colors.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.size(64.dp)
+                )
+                Text(
+                    text = "点击或按住说话",
+                    style = MaterialTheme.typography.caption.copy(fontSize = 13.sp),
+                    color = colors.onSurface
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(colors.primary)
+                )
+            }
+            PreviewSymbolColumn(listOf("；", "~", "（）", "“”"), colors)
+        }
+
+        // 底行：输入法选择 + 语言 + 逗号 + 空格 + 句号 + 回车，对应 KeyboardView.BottomRow
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            PreviewIcon(R.drawable.ic_language, colors.onSurface)
+            PreviewKey("中", colors, primary = true)
+            PreviewKey("，", colors)
+            PreviewKey("空格", colors, Modifier.weight(1f), muted = true)
+            PreviewKey("。", colors)
+            PreviewIcon(R.drawable.ic_enter, colors.onSurface)
+        }
     }
 }
 
+/** 预览图标：复用真实键盘图标资源，仅作静态展示（tint 取自主题前景色） */
 @Composable
-private fun PreviewKeyRow(keys: List<Pair<String, Float>>, colors: Colors, modifier: Modifier) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.fillMaxWidth()
+private fun PreviewIcon(res: Int, tint: Color) {
+    Icon(
+        painter = painterResource(res),
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.size(20.dp)
+    )
+}
+
+/** 预览符号列：surface 底 + onSurface 前景，均分中部高度（同真实 SymbolColumn 比例） */
+@Composable
+private fun PreviewSymbolColumn(labels: List<String>, colors: Colors) {
+    Column(
+        modifier = Modifier
+            .width(40.dp)
+            .fillMaxHeight()
+            .padding(vertical = 2.dp)
     ) {
-        keys.forEach { (label, weight) ->
+        labels.forEach { label ->
             Box(
                 modifier = Modifier
-                    .weight(weight)
-                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .weight(1f)
                     .clip(RoundedCornerShape(6.dp))
                     .background(colors.surface),
                 contentAlignment = Alignment.Center
@@ -2584,6 +2665,56 @@ private fun PreviewKeyRow(keys: List<Pair<String, Float>>, colors: Colors, modif
                 )
             }
         }
+    }
+}
+
+/** 预览按键：surface 底 + onSurface/primary 前景；primary 用于语言键，muted 用于空格占位 */
+@Composable
+private fun PreviewKey(
+    label: String,
+    colors: Colors,
+    modifier: Modifier = Modifier,
+    primary: Boolean = false,
+    muted: Boolean = false
+) {
+    val textColor = when {
+        primary -> colors.primary
+        muted -> colors.onSurface.copy(alpha = 0.4f)
+        else -> colors.onSurface
+    }
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(colors.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.caption.copy(fontSize = 13.sp),
+            color = textColor,
+            maxLines = 1
+        )
+    }
+}
+
+/** 预览文字小标签（如 LLM 按钮）：surface 底 + 指定前景 */
+@Composable
+private fun PreviewPill(label: String, colors: Colors, tint: Color) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 2.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(colors.surface)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.caption.copy(fontSize = 12.sp),
+            color = tint,
+            maxLines = 1
+        )
     }
 }
 

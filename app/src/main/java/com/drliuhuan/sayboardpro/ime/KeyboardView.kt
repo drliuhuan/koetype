@@ -141,13 +141,15 @@ class KeyboardView(
             IconButton(onClick = { listener.hideKeyboardClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_arrow_back),
-                    contentDescription = stringResource(R.string.ime_hide_keyboard)
+                    contentDescription = stringResource(R.string.ime_hide_keyboard),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             // provider 名称（识别引擎展示名）
             Text(
                 text = providerName,
                 style = MaterialTheme.typography.caption.copy(fontSize = 14.sp),
+                color = MaterialTheme.colors.onSurface,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -157,13 +159,15 @@ class KeyboardView(
             IconButton(onClick = { listener.dictionaryClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_dictionary),
-                    contentDescription = stringResource(R.string.ime_dictionary)
+                    contentDescription = stringResource(R.string.ime_dictionary),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             IconButton(onClick = { listener.settingsClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_settings),
-                    contentDescription = stringResource(R.string.ime_open_settings)
+                    contentDescription = stringResource(R.string.ime_open_settings),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
@@ -333,7 +337,8 @@ class KeyboardView(
                     }
                     Text(
                         text = statusText(state, errorMsg),
-                        style = MaterialTheme.typography.h6.copy(fontSize = 22.sp)
+                        style = MaterialTheme.typography.h6.copy(fontSize = 22.sp),
+                        color = MaterialTheme.colors.onSurface
                     )
                     if (state == State.LISTENING) {
                         LinearProgressIndicator(
@@ -389,6 +394,7 @@ class KeyboardView(
             Text(
                 text = label,
                 style = MaterialTheme.typography.body1.copy(fontSize = 20.sp),
+                color = MaterialTheme.colors.onSurface,
                 maxLines = 1
             )
         }
@@ -412,7 +418,8 @@ class KeyboardView(
             IconButton(onClick = { listener.imePickerClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_language),
-                    contentDescription = stringResource(R.string.ime_switch_keyboard)
+                    contentDescription = stringResource(R.string.ime_switch_keyboard),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
             // 语言按钮：中文 "中" / 英文 "EN"，点击切换
@@ -454,7 +461,8 @@ class KeyboardView(
             IconButton(onClick = { listener.enterClick() }) {
                 Icon(
                     painter = painterResource(R.drawable.ic_enter),
-                    contentDescription = stringResource(R.string.ime_enter_newline)
+                    contentDescription = stringResource(R.string.ime_enter_newline),
+                    tint = MaterialTheme.colors.onSurface
                 )
             }
         }
@@ -470,7 +478,11 @@ class KeyboardView(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(label, style = MaterialTheme.typography.body1.copy(fontSize = 22.sp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.body1.copy(fontSize = 22.sp),
+                color = MaterialTheme.colors.onSurface
+            )
         }
     }
 
