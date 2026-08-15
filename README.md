@@ -121,11 +121,11 @@ KoeType is completely free and open source. If you find it useful, feel free to 
 
 ## 贡献者 / Contributors
 
-- **drliuhuan** — 产品设计、需求定义、测试验证 / product design, requirements, testing
-- **Hermes** — 架构方案、日志分析、编译打包与交付 / architecture, log analysis, builds & delivery
-- **DeepSeek Harness** — 代码实现 / code implementation
 - **Claude Code** — 代码实现 / code implementation
 - **DeepSeek** — 推理模型（驱动 Claude Code 与 Hermes 的底层 LLM）/ LLM inference model powering Claude Code and Hermes
+- **DeepSeek Harness** — 代码实现 / code implementation
+- **Hermes** — 架构方案、日志分析、编译打包与交付 / architecture, log analysis, builds & delivery
+- **drliuhuan** — 产品设计、需求定义、测试验证 / product design, requirements, testing
 
 ## 许可 / License
 
