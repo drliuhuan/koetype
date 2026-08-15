@@ -89,8 +89,10 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
 
     // sherpa-onnx 官方 Android AAR（v1.13.5，内置 onnxruntime 与 libsherpa-onnx-jni.so）
-    // 从 https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar 下载放入 app/libs/
-    // 官方没有 Maven 坐标（Maven Central 只有第三方 com.bihe0832.android:lib-sherpa-onnx，版本旧且非官方，不用）。
+    // 本地 AAR 方式：从 https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.5/sherpa-onnx-1.13.5.aar 下载放入 app/libs/
+    // 官方亦通过 JitPack 发布 Maven 坐标（settings.gradle 加 maven { url 'https://jitpack.io' } 后直接依赖）：
+    //   implementation 'com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.5'
+    // 国内网络访问 JitPack 偶有超时，为保证构建稳定，本项目采用本地 AAR 方式。
     implementation files('libs/sherpa-onnx-1.13.5.aar')
 
     // Jetpack Compose
